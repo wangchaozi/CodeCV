@@ -147,7 +147,7 @@ export class UserService {
    * 禁用/启用用户
    */
   async toggleActive(id: string, isActive: boolean): Promise<boolean> {
-    const user = await this.findOneById(id);
+    await this.findOneById(id);
     await this.userRepository.update(id, { isActive });
     return true;
   }
