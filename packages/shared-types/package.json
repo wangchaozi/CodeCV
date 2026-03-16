@@ -1,0 +1,25 @@
+{
+  "name": "shared-types",
+  "version": "1.0.0",
+  "description": "前后端共用的类型定义",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch"
+  },
+  "keywords": [
+    "types",
+    "dto",
+    "enum"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "zod": "^3.22.4"
+  },
+  "dependencies": {
+    "typescript": "^5.3.3"
+  },
+  "packageManager": "pnpm@10.8.1"
+}
