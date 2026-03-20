@@ -128,10 +128,16 @@ export default function KnowledgeSpacesPage() {
     <div className="kn-spaces-root">
       {/* 顶部导航 */}
       <header className="kn-topbar">
-        <div className="kn-topbar-back" style={{ cursor: 'default', color: '#5b5bd6' }}>
+        <button
+          type="button"
+          className="kn-topbar-back"
+          style={{ color: '#5b5bd6' }}
+          onClick={() => navigate('/dashboard/library')}
+          title="返回简历库"
+        >
           <Zap size={16} />
           <span style={{ fontWeight: 600 }}>AI Interview</span>
-        </div>
+        </button>
         <div className="kn-topbar-divider" />
         <span className="kn-topbar-title">知识库</span>
         <div className="kn-topbar-actions">
