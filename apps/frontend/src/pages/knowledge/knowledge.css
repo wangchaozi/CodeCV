@@ -1,7 +1,7 @@
 /* ─── 公共变量 ──────────────────────────────────────────────────────────────── */
 
 :root {
-  --kn-sidebar-width: 240px;
+  --kn-sidebar-width: 248px;
   --kn-header-h: 52px;
   --kn-border: #e5e7eb;
   --kn-bg: #f5f6fb;
@@ -69,6 +69,32 @@
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+/* ─── 通用图标按钮 ────────────────────────────────────────────────────────── */
+
+.kn-icon-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: none;
+  background: transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  color: var(--kn-text-muted);
+  transition: background 0.15s, color 0.15s;
+}
+
+.kn-icon-btn:hover {
+  background: #f3f4f6;
+  color: var(--kn-text-primary);
+}
+
+.kn-icon-btn-danger:hover {
+  background: #fef2f2;
+  color: #dc2626;
 }
 
 /* ─── KnowledgeSpacesPage ───────────────────────────────────────────────────── */
@@ -191,37 +217,12 @@
 .kn-space-card-ops {
   display: flex;
   gap: 2px;
-  /* 默认隐藏，hover 时显示 */
   opacity: 0;
   transition: opacity 0.15s;
 }
 
 .kn-space-card:hover .kn-space-card-ops {
   opacity: 1;
-}
-
-.kn-icon-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 26px;
-  height: 26px;
-  border: none;
-  background: transparent;
-  border-radius: 6px;
-  cursor: pointer;
-  color: var(--kn-text-muted);
-  transition: background 0.15s, color 0.15s;
-}
-
-.kn-icon-btn:hover {
-  background: #f3f4f6;
-  color: var(--kn-text-primary);
-}
-
-.kn-icon-btn-danger:hover {
-  background: #fef2f2;
-  color: #dc2626;
 }
 
 /* 空状态 */
@@ -259,7 +260,7 @@
 }
 
 .kn-detail-left-header {
-  padding: 16px 16px 12px;
+  padding: 14px 14px 12px;
   border-bottom: 1px solid var(--kn-border);
   flex-shrink: 0;
 }
@@ -286,51 +287,194 @@
   font-size: 11px;
   color: var(--kn-text-muted);
   margin-top: 4px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
-/* 文章列表 */
+/* 处理中徽章（左侧标题行右侧） */
+.kn-processing-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: #fef3c7;
+  color: #b45309;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+/* ─── 文章列表 ────────────────────────────────────────────────────────────── */
+
 .kn-article-list {
   flex: 1;
   overflow-y: auto;
-  padding: 8px 0;
+  padding: 6px 0;
 }
 
+.kn-article-list-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 40px 16px;
+  color: var(--kn-text-muted);
+  font-size: 12px;
+}
+
+/* 文章列表项（通用容器，支持手动和上传两种来源） */
 .kn-article-item {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 8px;
-  padding: 7px 16px;
-  font-size: 13px;
-  color: var(--kn-text-secondary);
-  cursor: pointer;
-  border-radius: 0;
-  transition: background 0.12s;
+  padding: 8px 12px;
   border: none;
   background: transparent;
   width: 100%;
   text-align: left;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  transition: background 0.12s;
+  position: relative;
 }
 
-.kn-article-item:hover {
+.kn-article-item[role="button"] {
+  cursor: pointer;
+}
+
+.kn-article-item[role="button"]:hover {
   background: #f0f0f5;
-  color: var(--kn-text-primary);
 }
 
 .kn-article-item.is-active {
   background: #ede9fe;
+}
+
+.kn-article-item.is-processing {
+  cursor: default;
+  opacity: 0.85;
+}
+
+.kn-article-item.is-failed {
+  cursor: default;
+  background: #fff8f8;
+}
+
+.kn-article-item.is-failed:hover {
+  background: #fff0f0;
+}
+
+.kn-article-item-icon {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: var(--kn-text-muted);
+}
+
+.kn-article-item.is-active .kn-article-item-icon {
+  color: var(--kn-accent);
+}
+
+.kn-article-item-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.kn-article-item-title-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+}
+
+/* 文件格式徽章（内嵌于标题行） */
+.kn-article-item-fmt {
+  flex-shrink: 0;
+  font-size: 9px;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 4px;
+  line-height: 1.6;
+  letter-spacing: 0.02em;
+}
+
+.kn-article-item-title {
+  font-size: 12.5px;
+  color: var(--kn-text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.45;
+}
+
+.kn-article-item.is-active .kn-article-item-title {
   color: var(--kn-accent);
   font-weight: 500;
 }
 
-.kn-new-article-btn {
-  margin: 8px 12px;
+/* 上传进度条（uploading 状态） */
+.kn-article-upload-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.kn-article-upload-bar {
+  flex: 1;
+  height: 3px;
+  background: #e5e7eb;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.kn-article-upload-fill {
+  height: 100%;
+  background: var(--kn-accent);
+  border-radius: 999px;
+  transition: width 0.25s ease;
+}
+
+.kn-article-upload-pct {
+  font-size: 10px;
+  color: var(--kn-text-muted);
+  font-variant-numeric: tabular-nums;
   flex-shrink: 0;
 }
 
-/* 右侧文章内容 */
+/* 内联状态文字（parsing / parsed / failed） */
+.kn-article-item-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11px;
+}
+
+.kn-article-item-status.parsing  { color: #b45309; }
+.kn-article-item-status.parsed   { color: #6b7280; }
+.kn-article-item-status.failed   { color: #dc2626; }
+
+/* 失败时的内联操作按钮（retryUpload / delete） */
+.kn-article-item-actions {
+  display: flex;
+  gap: 2px;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+/* 底部操作按钮区（新建文章 / 上传文档） */
+.kn-left-actions {
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border-top: 1px solid var(--kn-border);
+  flex-shrink: 0;
+}
+
+/* ─── 右侧内容区 ──────────────────────────────────────────────────────────── */
+
 .kn-detail-main {
   flex: 1;
   display: flex;
@@ -339,7 +483,6 @@
   background: var(--kn-surface);
 }
 
-/* 无文章选中的空状态 */
 .kn-article-empty {
   flex: 1;
   display: flex;
@@ -355,7 +498,6 @@
   font-size: 14px;
 }
 
-/* 文章内容区 */
 .kn-article-view {
   flex: 1;
   overflow-y: auto;
@@ -488,7 +630,6 @@
   font-style: italic;
 }
 
-/* 加载态 */
 .kn-detail-loading {
   flex: 1;
   display: flex;
@@ -498,4 +639,205 @@
   gap: 12px;
   color: var(--kn-text-muted);
   font-size: 13px;
+}
+
+/* ─── DocumentUploader 弹窗 ───────────────────────────────────────────────── */
+
+.kn-drop-zone {
+  border: 2px dashed #d1d5db;
+  border-radius: 12px;
+  padding: 32px 24px;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
+  user-select: none;
+  outline: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.kn-drop-zone:hover {
+  border-color: #9ca3af;
+  background: #fafafa;
+}
+
+.kn-drop-zone.is-dragging {
+  border-color: var(--kn-accent);
+  border-style: solid;
+  background: #f5f3ff;
+}
+
+.kn-drop-icon {
+  transition: color 0.2s;
+}
+
+.kn-drop-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--kn-text-primary);
+}
+
+.kn-drop-hint {
+  margin: 0;
+  font-size: 12px;
+  color: var(--kn-text-secondary);
+}
+
+.kn-drop-chunked-hint {
+  margin: 0;
+  font-size: 11px;
+  color: var(--kn-text-muted);
+}
+
+/* 校验错误 */
+.kn-upload-errors {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.kn-upload-error-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  padding: 8px 12px;
+  background: #fef2f2;
+  border-radius: 8px;
+  border: 1px solid #fecaca;
+  font-size: 12.5px;
+  color: #b91c1c;
+  line-height: 1.5;
+}
+
+/* 上传队列 */
+.kn-upload-queue {
+  margin-top: 16px;
+}
+
+.kn-upload-queue-title {
+  margin: 0 0 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--kn-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.kn-upload-queue-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--kn-border);
+  background: #fafafa;
+  margin-bottom: 6px;
+}
+
+.kn-doc-format-badge {
+  flex-shrink: 0;
+  font-size: 9px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  line-height: 1.6;
+  letter-spacing: 0.02em;
+}
+
+.kn-upload-queue-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.kn-upload-queue-name {
+  font-size: 12.5px;
+  color: var(--kn-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.kn-upload-queue-size {
+  font-size: 11px;
+  color: var(--kn-text-muted);
+}
+
+.kn-upload-queue-state {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  min-width: 100px;
+}
+
+.kn-upload-queue-progress-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  width: 100%;
+}
+
+.kn-upload-queue-progress-bar {
+  width: 100%;
+  height: 4px;
+  background: #e5e7eb;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.kn-upload-queue-progress-fill {
+  height: 100%;
+  background: var(--kn-accent);
+  border-radius: 999px;
+  transition: width 0.25s ease;
+}
+
+.kn-upload-queue-pct {
+  font-size: 11px;
+  color: var(--kn-text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.kn-upload-queue-status {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11.5px;
+  border-radius: 999px;
+  padding: 2px 8px;
+}
+
+.kn-upload-queue-status.parsing {
+  background: #fef3c7;
+  color: #b45309;
+}
+
+.kn-upload-queue-status.parsed {
+  background: #ecfdf3;
+  color: #15803d;
+}
+
+.kn-upload-queue-status.failed {
+  background: #fef2f2;
+  color: #b91c1c;
+}
+
+/* ─── 旋转动画 ───────────────────────────────────────────────────────────── */
+
+@keyframes kn-spin {
+  to { transform: rotate(360deg); }
+}
+
+.kn-spin {
+  animation: kn-spin 1s linear infinite;
+  display: inline-block;
 }

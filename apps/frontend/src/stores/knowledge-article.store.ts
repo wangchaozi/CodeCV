@@ -1,13 +1,52 @@
 import { create } from 'zustand'
-import type { KnowledgeArticle, CreateArticleDto, UpdateArticleDto } from '../types/knowledge.types'
+import type {
+  KnowledgeArticle,
+  CreateArticleDto,
+  UpdateArticleDto,
+  DocumentFormat,
+  UploadStatus,
+} from '../types/knowledge.types'
+
+// ─── 文件上传工具（供 store 和 UI 组件复用）──────────────────────────────────
+
+export const SUPPORTED_FORMATS = ['pdf', 'md', 'txt', 'docx', 'doc', 'js', 'ts', 'vue'] as const
+export const ACCEPT_TYPES = '.pdf,.md,.txt,.docx,.doc,.js,.ts,.vue'
+export const MAX_FILE_SIZE = 50 * 1024 * 1024   // 50 MB
+export const CHUNK_THRESHOLD = 10 * 1024 * 1024 // >10 MB 启用分片
+export const CHUNK_SIZE = 2 * 1024 * 1024        // 每片 2 MB
+
+export type FormatConfig = { label: string; color: string; bg: string }
+
+export const FORMAT_CONFIG: Record<DocumentFormat, FormatConfig> = {
+  pdf:  { label: 'PDF',  color: '#ef4444', bg: '#fef2f2' },
+  md:   { label: 'MD',   color: '#3b82f6', bg: '#eff6ff' },
+  txt:  { label: 'TXT',  color: '#6b7280', bg: '#f3f4f6' },
+  docx: { label: 'DOCX', color: '#2563eb', bg: '#eff6ff' },
+  doc:  { label: 'DOC',  color: '#1d4ed8', bg: '#eff6ff' },
+  js:   { label: 'JS',   color: '#b45309', bg: '#fef3c7' },
+  ts:   { label: 'TS',   color: '#3178c6', bg: '#dbeafe' },
+  vue:  { label: 'Vue',  color: '#059669', bg: '#ecfdf5' },
+}
+
+export function getDocFormat(fileName: string): DocumentFormat | null {
+  const ext = fileName.split('.').pop()?.toLowerCase() ?? ''
+  return (SUPPORTED_FORMATS as readonly string[]).includes(ext) ? (ext as DocumentFormat) : null
+}
+
+export function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`
+}
+
+// ─── Mock 初始文章数据 ────────────────────────────────────────────────────────
 
 let nextArticleId = 100
 
-// 开发阶段 mock 数据，按 spaceId 分组，后端就绪后移除
 const MOCK_ARTICLES: Record<number, KnowledgeArticle[]> = {
   1: [
     {
-      id: 1, spaceId: 1, sortOrder: 1,
+      id: 1, spaceId: 1, sortOrder: 1, source: 'manual',
       title: 'JavaScript 事件循环机制',
       tags: ['event-loop', '异步', '宏任务', '微任务'],
       content: `## 什么是事件循环？
@@ -36,31 +75,18 @@ console.log('4')
       createdAt: '2026-01-11T09:30:00.000Z', updatedAt: '2026-01-11T09:30:00.000Z',
     },
     {
-      id: 2, spaceId: 1, sortOrder: 2,
+      id: 2, spaceId: 1, sortOrder: 2, source: 'manual',
       title: 'JavaScript 原型链与继承',
       tags: ['原型链', '继承', 'OOP'],
       content: `## 原型链
 
 每个对象都有一个 \`[[Prototype]]\` 内部槽，指向其原型对象。访问属性时，JS 引擎沿原型链向上查找直到 \`null\`。
 
-## 构造函数与 prototype
-
-\`\`\`javascript
-function Animal(name) {
-  this.name = name
-}
-Animal.prototype.speak = function () {
-  return \`\${this.name} makes a sound\`
-}
-\`\`\`
-
 ## ES6 Class（语法糖）
 
 \`\`\`javascript
 class Dog extends Animal {
-  speak() {
-    return \`\${this.name} barks\`
-  }
+  speak() { return \`\${this.name} barks\` }
 }
 \`\`\`
 
@@ -68,38 +94,54 @@ class Dog extends Animal {
       createdAt: '2026-01-12T10:00:00.000Z', updatedAt: '2026-01-12T10:00:00.000Z',
     },
     {
-      id: 3, spaceId: 1, sortOrder: 3,
+      id: 3, spaceId: 1, sortOrder: 3, source: 'manual',
       title: '闭包与作用域',
       tags: ['闭包', '作用域', '函数'],
       content: `## 什么是闭包？
 
 闭包是**函数与其词法环境的组合**。当内部函数引用了外部函数的变量时，即使外部函数已执行完毕，这些变量仍然存活在内存中。
 
-## 经典用途
-
-- **数据私有化**（模块模式）
-- **函数柯里化**
-- **事件监听器与回调**
-
 ## 经典闭包陷阱
 
 \`\`\`javascript
-// 循环中使用 var（陷阱）
 for (var i = 0; i < 3; i++) {
   setTimeout(() => console.log(i), 100) // 全打印 3
 }
-
-// 修复：用 let 或 IIFE
 for (let i = 0; i < 3; i++) {
   setTimeout(() => console.log(i), 100) // 0 1 2
 }
 \`\`\``,
       createdAt: '2026-01-13T11:00:00.000Z', updatedAt: '2026-01-13T11:00:00.000Z',
     },
+    // 模拟一篇已解析完成的上传文章
+    {
+      id: 4, spaceId: 1, sortOrder: 4, source: 'upload',
+      title: 'JavaScript权威指南第7版',
+      originalFileName: 'JavaScript权威指南第7版.pdf',
+      fileFormat: 'pdf', fileSize: Math.round(8.2 * 1024 * 1024),
+      uploadStatus: 'parsed', uploadProgress: 100,
+      tags: ['参考书', 'JS基础'],
+      content: `## JavaScript 权威指南（第 7 版）
+
+> 本内容由上传的 PDF 文档解析生成，可作为 AI 问答的数据源。
+
+### 第 1 章：JavaScript 简介
+
+JavaScript 是一门高级、动态、解释型编程语言，非常适合面向对象和函数式编程风格...
+
+### 第 3 章：类型、值和变量
+
+JavaScript 的数据类型分为**原始类型**（primitive）和**对象类型**（object）。原始类型包括数字、字符串、布尔值、null、undefined、Symbol 和 BigInt...
+
+### 第 8 章：函数
+
+函数是 JavaScript 程序的基本构成单元，也是一段可以被调用执行的 JavaScript 代码...`,
+      createdAt: '2026-01-10T10:00:00.000Z', updatedAt: '2026-01-10T10:00:00.000Z',
+    },
   ],
   2: [
     {
-      id: 4, spaceId: 2, sortOrder: 1,
+      id: 5, spaceId: 2, sortOrder: 1, source: 'manual',
       title: 'React useEffect 依赖数组详解',
       tags: ['hooks', 'useEffect', '副作用'],
       content: `## 基本语法
@@ -117,87 +159,44 @@ useEffect(() => {
 |---------|---------|
 | 省略 | 每次渲染后执行 |
 | \`[]\` | 仅挂载时执行一次 |
-| \`[a, b]\` | a 或 b 变化时执行 |
-
-## 常见陷阱
-
-1. **遗漏依赖**：eslint-plugin-react-hooks 会发出警告
-2. **对象/数组作为依赖**：每次渲染引用变化，导致无限循环
-3. **在 effect 内部定义函数**：用 useCallback 包裹后加入依赖`,
+| \`[a, b]\` | a 或 b 变化时执行 |`,
       createdAt: '2026-01-10T08:00:00.000Z', updatedAt: '2026-01-10T08:00:00.000Z',
     },
     {
-      id: 5, spaceId: 2, sortOrder: 2,
+      id: 6, spaceId: 2, sortOrder: 2, source: 'manual',
       title: '前端性能优化：代码分割与懒加载',
-      tags: ['性能优化', '懒加载', 'Vite', 'code-splitting'],
-      content: `## 为什么需要代码分割？
-
-单页应用如果将所有代码打包在一个 bundle 中，首屏加载时间会随应用体积增大而增加。
-
-## React.lazy + Suspense
+      tags: ['性能优化', '懒加载', 'Vite'],
+      content: `## React.lazy + Suspense
 
 \`\`\`tsx
 const HeavyComponent = React.lazy(() => import('./HeavyComponent'))
-
-function App() {
-  return (
-    <Suspense fallback={<div>Loading...</div>}>
-      <HeavyComponent />
-    </Suspense>
-  )
-}
 \`\`\`
-
-## 路由级代码分割
-
-Vite + React Router 推荐在路由层面进行分割，每个页面生成独立 chunk。
 
 ## 实践建议
 
 - 大型第三方库（recharts、pdf.js）应单独分割
-- 首屏关键资源用 \`<link rel="preload">\` 预加载
-- 分析 bundle：使用 rollup-plugin-visualizer`,
+- 首屏关键资源用 \`<link rel="preload">\` 预加载`,
       createdAt: '2026-01-15T15:00:00.000Z', updatedAt: '2026-01-15T15:00:00.000Z',
     },
   ],
   3: [
     {
-      id: 6, spaceId: 3, sortOrder: 1,
+      id: 7, spaceId: 3, sortOrder: 1, source: 'manual',
       title: 'CSS BFC（块级格式化上下文）',
-      tags: ['BFC', '布局', '浮动', '清除浮动'],
-      content: `## 什么是 BFC？
+      tags: ['BFC', '布局', '浮动'],
+      content: `## 触发 BFC 的条件
 
-BFC（Block Formatting Context）是 CSS 中一个独立的渲染区域，内部元素的布局不会影响外部。
-
-## 触发 BFC 的条件
-
-- \`overflow\` 值不为 \`visible\`（如 \`auto\`、\`hidden\`）
-- \`display: flex\`、\`grid\`、\`inline-block\`、\`table-cell\`
-- \`position: absolute\` 或 \`fixed\`
-- \`float\` 不为 \`none\`
+- \`overflow\` 值不为 \`visible\`
+- \`display: flex/grid/inline-block\`
+- \`position: absolute/fixed\`
 
 ## 常见用途
 
-### 1. 清除浮动
-
-\`\`\`css
-.parent { overflow: hidden; } /* 触发 BFC，包含浮动子元素 */
-\`\`\`
-
-### 2. 防止 margin 合并
-
-相邻块级元素的 margin 会合并，将其放入不同 BFC 可阻止合并。
-
-### 3. 实现自适应两栏布局
-
-\`\`\`css
-.aside { float: left; width: 200px; }
-.main  { overflow: hidden; } /* BFC 不与浮动重叠 */
-\`\`\``,
+清除浮动、防止 margin 合并、实现自适应两栏布局。`,
       createdAt: '2026-01-13T11:00:00.000Z', updatedAt: '2026-01-13T11:00:00.000Z',
     },
     {
-      id: 7, spaceId: 3, sortOrder: 2,
+      id: 8, spaceId: 3, sortOrder: 2, source: 'manual',
       title: 'Flexbox 核心概念速查',
       tags: ['Flexbox', '布局', 'CSS'],
       content: `## 容器属性
@@ -208,44 +207,18 @@ BFC（Block Formatting Context）是 CSS 中一个独立的渲染区域，内部
   flex-direction: row | column;
   justify-content: flex-start | center | space-between;
   align-items: stretch | center | flex-end;
-  flex-wrap: nowrap | wrap;
   gap: 16px;
 }
-\`\`\`
-
-## 子项属性
-
-\`\`\`css
-.item {
-  flex: 1;           /* flex-grow: 1, flex-shrink: 1, flex-basis: 0 */
-  flex-shrink: 0;    /* 禁止收缩 */
-  align-self: center;
-  order: -1;
-}
-\`\`\`
-
-## 常用技巧
-
-- 垂直水平居中：\`display: flex; align-items: center; justify-content: center\`
-- 等分子项：给每个子项设置 \`flex: 1\`
-- 最后一项靠右：\`margin-left: auto\``,
+\`\`\``,
       createdAt: '2026-01-14T10:00:00.000Z', updatedAt: '2026-01-14T10:00:00.000Z',
     },
   ],
   4: [
     {
-      id: 8, spaceId: 4, sortOrder: 1,
+      id: 9, spaceId: 4, sortOrder: 1, source: 'manual',
       title: 'TypeScript 泛型约束（extends keyof）',
-      tags: ['泛型', '类型系统', '工具类型', '条件类型'],
-      content: `## 基本泛型
-
-\`\`\`typescript
-function identity<T>(value: T): T {
-  return value
-}
-\`\`\`
-
-## extends 约束
+      tags: ['泛型', '类型系统', '工具类型'],
+      content: `## extends 约束
 
 \`\`\`typescript
 function getProperty<T, K extends keyof T>(obj: T, key: K): T[K] {
@@ -257,95 +230,44 @@ function getProperty<T, K extends keyof T>(obj: T, key: K): T[K] {
 
 \`\`\`typescript
 type Partial<T>  = { [K in keyof T]?: T[K] }
-type Required<T> = { [K in keyof T]-?: T[K] }
 type Pick<T, K extends keyof T> = { [P in K]: T[P] }
-type Omit<T, K extends keyof T> = Pick<T, Exclude<keyof T, K>>
-\`\`\`
-
-## 条件类型
-
-\`\`\`typescript
-type NonNullable<T> = T extends null | undefined ? never : T
-type ReturnType<T extends (...args: any) => any> =
-  T extends (...args: any) => infer R ? R : never
 \`\`\``,
       createdAt: '2026-01-14T14:00:00.000Z', updatedAt: '2026-01-14T14:00:00.000Z',
     },
   ],
   5: [
     {
-      id: 9, spaceId: 5, sortOrder: 1,
+      id: 10, spaceId: 5, sortOrder: 1, source: 'manual',
       title: 'HTTP/2 与 HTTP/1.1 的核心区别',
-      tags: ['HTTP', 'HTTP/2', '网络协议', '性能'],
-      content: `## 背景
+      tags: ['HTTP', 'HTTP/2', '网络协议'],
+      content: `## HTTP/2 的改进
 
-HTTP/1.1 的主要痛点：
-
-- **队头阻塞**：同一连接上的请求必须串行等待
-- **Header 冗余**：每次请求携带大量重复头字段
-- **没有优先级机制**
-
-## HTTP/2 的改进
-
-### 1. 多路复用
-
-单个 TCP 连接上可以并行传输多个请求/响应，彻底解决队头阻塞。
-
-### 2. 首部压缩（HPACK）
-
-使用静态表 + 动态表压缩 Header，减少 50~90% 的头字段大小。
-
-### 3. 服务器推送
-
-服务器可以主动推送客户端可能需要的资源（如 CSS、JS）。
-
-### 4. 二进制分帧
-
-用二进制替代文本协议，解析更高效，帧类型明确。
-
-## HTTP/3（QUIC）
-
-基于 UDP，解决了 TCP 层的队头阻塞，进一步提升弱网性能。`,
+1. **多路复用**：单 TCP 连接并行传输
+2. **首部压缩**（HPACK）：减少 50~90% Header 大小
+3. **服务器推送**：主动推送客户端资源
+4. **二进制分帧**：替代文本协议`,
       createdAt: '2026-01-12T10:00:00.000Z', updatedAt: '2026-01-12T10:00:00.000Z',
     },
   ],
   6: [
     {
-      id: 10, spaceId: 6, sortOrder: 1,
+      id: 11, spaceId: 6, sortOrder: 1, source: 'manual',
       title: 'Node.js 事件驱动与非阻塞 I/O',
-      tags: ['Node.js', '事件循环', '非阻塞I/O', 'libuv'],
+      tags: ['Node.js', '事件循环', 'libuv'],
       content: `## 核心特性
 
 Node.js 基于 **libuv** 实现跨平台的异步 I/O，单线程 + 事件循环处理并发。
 
-## 事件循环阶段
-
-\`\`\`
-┌───────────────────────────┐
-│           timers          │ ← setTimeout, setInterval
-├───────────────────────────┤
-│     pending callbacks     │ ← 上一轮延迟的 I/O 回调
-├───────────────────────────┤
-│          poll             │ ← 等待新的 I/O 事件
-├───────────────────────────┤
-│           check           │ ← setImmediate
-├───────────────────────────┤
-│      close callbacks      │
-└───────────────────────────┘
-\`\`\`
-
-## 线程池
-
-CPU 密集型任务（crypto、zlib、fs 大文件）在 libuv 的**线程池**（默认 4 个线程）中执行，不阻塞事件循环。
-
 ## 适用场景
 
 ✅ I/O 密集型（API 网关、实时通信）
-❌ CPU 密集型（图像处理、科学计算 → 考虑 Worker Threads）`,
+❌ CPU 密集型（图像处理 → 考虑 Worker Threads）`,
       createdAt: '2026-01-17T11:00:00.000Z', updatedAt: '2026-01-17T11:00:00.000Z',
     },
   ],
 }
+
+// ─── Store ────────────────────────────────────────────────────────────────────
 
 interface ArticleState {
   articlesBySpace: Record<number, KnowledgeArticle[]>
@@ -354,38 +276,40 @@ interface ArticleState {
 }
 
 interface ArticleActions {
-  /** TODO: 替换为 `const { data } = await knowledgeArticleApi.listBySpace(spaceId)` */
   fetchBySpace: (spaceId: number) => Promise<void>
-  /** TODO: 替换为 `const { data } = await knowledgeArticleApi.create(dto)` */
-  createArticle: (dto: CreateArticleDto) => Promise<void>
-  /** TODO: 替换为 `const { data } = await knowledgeArticleApi.update(id, dto)` */
+  createArticle: (dto: CreateArticleDto) => Promise<KnowledgeArticle>
   updateArticle: (id: number, dto: UpdateArticleDto) => Promise<void>
-  /** TODO: 替换为 `await knowledgeArticleApi.delete(id)` */
   deleteArticle: (spaceId: number, id: number) => Promise<void>
+  /**
+   * 上传文件并自动解析为文章
+   * - 大文件（>CHUNK_THRESHOLD）分片上传，实时更新进度
+   * - 上传完成后进入"解析中"阶段，解析完成后成为普通文章
+   * - forceOverwrite=true：删除同名旧文章后重新上传
+   * TODO: 后端就绪后替换为 knowledgeArticleApi.upload()
+   */
+  uploadArticle: (spaceId: number, file: File, forceOverwrite?: boolean) => Promise<void>
+  retryUpload: (spaceId: number, id: number, file: File) => Promise<void>
+  deleteUploadedArticle: (spaceId: number, id: number) => Promise<void>
 }
 
-export const useKnowledgeArticleStore = create<ArticleState & ArticleActions>((set) => ({
+export const useKnowledgeArticleStore = create<ArticleState & ArticleActions>((set, get) => ({
   articlesBySpace: {},
   loadingSpaceId: null,
   error: null,
 
   fetchBySpace: async (spaceId) => {
     set({ loadingSpaceId: spaceId, error: null })
-    try {
-      await new Promise<void>((r) => setTimeout(r, 200))
-      const items = MOCK_ARTICLES[spaceId] ?? []
-      set((s) => ({
-        articlesBySpace: { ...s.articlesBySpace, [spaceId]: items },
-        loadingSpaceId: null,
-      }))
-    } catch {
-      set({ loadingSpaceId: null, error: '加载文章失败' })
-    }
+    await new Promise<void>((r) => setTimeout(r, 200))
+    set((s) => ({
+      articlesBySpace: { ...s.articlesBySpace, [spaceId]: MOCK_ARTICLES[spaceId] ?? [] },
+      loadingSpaceId: null,
+    }))
   },
 
   createArticle: async (dto) => {
     const newArticle: KnowledgeArticle = {
       ...dto,
+      source: 'manual',
       id: nextArticleId++,
       sortOrder: Date.now(),
       createdAt: new Date().toISOString(),
@@ -393,13 +317,9 @@ export const useKnowledgeArticleStore = create<ArticleState & ArticleActions>((s
     }
     set((s) => {
       const prev = s.articlesBySpace[dto.spaceId] ?? []
-      return {
-        articlesBySpace: {
-          ...s.articlesBySpace,
-          [dto.spaceId]: [...prev, newArticle],
-        },
-      }
+      return { articlesBySpace: { ...s.articlesBySpace, [dto.spaceId]: [...prev, newArticle] } }
     })
+    return newArticle
   },
 
   updateArticle: async (id, dto) => {
@@ -422,4 +342,165 @@ export const useKnowledgeArticleStore = create<ArticleState & ArticleActions>((s
       },
     }))
   },
+
+  deleteUploadedArticle: async (spaceId, id) => {
+    set((s) => ({
+      articlesBySpace: {
+        ...s.articlesBySpace,
+        [spaceId]: (s.articlesBySpace[spaceId] ?? []).filter((a) => a.id !== id),
+      },
+    }))
+  },
+
+  uploadArticle: async (spaceId, file, forceOverwrite = false) => {
+    const format = getDocFormat(file.name)
+    if (!format) return
+
+    if (forceOverwrite) {
+      const existing = (get().articlesBySpace[spaceId] ?? []).find(
+        (a) => a.originalFileName === file.name,
+      )
+      if (existing) {
+        set((s) => ({
+          articlesBySpace: {
+            ...s.articlesBySpace,
+            [spaceId]: (s.articlesBySpace[spaceId] ?? []).filter((a) => a.id !== existing.id),
+          },
+        }))
+      }
+    }
+
+    const tempId = nextArticleId++
+    const titleFromFile = file.name.replace(/\.[^.]+$/, '')
+
+    // 创建占位文章（uploading 状态）
+    const placeholder: KnowledgeArticle = {
+      id: tempId,
+      spaceId,
+      title: titleFromFile,
+      content: '',
+      tags: [],
+      sortOrder: Date.now(),
+      source: 'upload',
+      originalFileName: file.name,
+      fileFormat: format,
+      fileSize: file.size,
+      uploadStatus: 'uploading',
+      uploadProgress: 0,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    }
+
+    set((s) => ({
+      articlesBySpace: {
+        ...s.articlesBySpace,
+        [spaceId]: [...(s.articlesBySpace[spaceId] ?? []), placeholder],
+      },
+    }))
+
+    const updateProgress = (progress: number, status?: UploadStatus) => {
+      set((s) => ({
+        articlesBySpace: {
+          ...s.articlesBySpace,
+          [spaceId]: (s.articlesBySpace[spaceId] ?? []).map((a) =>
+            a.id === tempId
+              ? { ...a, uploadProgress: progress, ...(status ? { uploadStatus: status } : {}) }
+              : a,
+          ),
+        },
+      }))
+    }
+
+    // ── 分片上传仿真 ──────────────────────────────────────────────────────────
+    const isLargeFile = file.size > CHUNK_THRESHOLD
+    const totalChunks = isLargeFile ? Math.ceil(file.size / CHUNK_SIZE) : 1
+    const delayPerChunk = isLargeFile ? 120 : 400
+
+    for (let i = 0; i < totalChunks; i++) {
+      await new Promise<void>((r) => setTimeout(r, delayPerChunk))
+      updateProgress(Math.round(((i + 1) / totalChunks) * 100))
+    }
+
+    // ── 解析阶段 ──────────────────────────────────────────────────────────────
+    updateProgress(100, 'parsing')
+    await new Promise<void>((r) => setTimeout(r, 1200 + Math.random() * 1500))
+
+    const success = Math.random() > 0.15
+
+    if (success) {
+      const extractedContent = buildExtractedContent(titleFromFile, file.name, file.size, format)
+      set((s) => ({
+        articlesBySpace: {
+          ...s.articlesBySpace,
+          [spaceId]: (s.articlesBySpace[spaceId] ?? []).map((a) =>
+            a.id === tempId
+              ? {
+                  ...a,
+                  uploadStatus: 'parsed',
+                  content: extractedContent,
+                  updatedAt: new Date().toISOString(),
+                }
+              : a,
+          ),
+        },
+      }))
+    } else {
+      updateProgress(100, 'failed')
+    }
+  },
+
+  retryUpload: async (spaceId, id, file) => {
+    set((s) => ({
+      articlesBySpace: {
+        ...s.articlesBySpace,
+        [spaceId]: (s.articlesBySpace[spaceId] ?? []).map((a) =>
+          a.id === id ? { ...a, uploadStatus: 'parsing', uploadProgress: 100 } : a,
+        ),
+      },
+    }))
+    await new Promise<void>((r) => setTimeout(r, 1500 + Math.random() * 1000))
+    const extractedContent = buildExtractedContent(
+      file.name.replace(/\.[^.]+$/, ''),
+      file.name,
+      file.size,
+      getDocFormat(file.name) ?? 'txt',
+    )
+    set((s) => ({
+      articlesBySpace: {
+        ...s.articlesBySpace,
+        [spaceId]: (s.articlesBySpace[spaceId] ?? []).map((a) =>
+          a.id === id
+            ? { ...a, uploadStatus: 'parsed', content: extractedContent, updatedAt: new Date().toISOString() }
+            : a,
+        ),
+      },
+    }))
+  },
 }))
+
+// ─── 辅助：生成解析后的文章内容（mock） ──────────────────────────────────────
+
+function buildExtractedContent(
+  title: string,
+  fileName: string,
+  size: number,
+  format: DocumentFormat,
+): string {
+  return `## ${title}
+
+> 本文由上传的 **${FORMAT_CONFIG[format].label}** 文件 \`${fileName}\`（${formatFileSize(size)}）解析生成，可作为 AI 问答的知识来源。
+
+---
+
+### 文档内容摘要
+
+（此处为后端从文件中提取的文本内容，经过分块处理后已生成向量索引，可供 AI 检索问答使用。）
+
+在实际接入后端后，本内容将替换为从原始文件解析出的真实文本。
+
+### 使用说明
+
+- 文档已完成向量化，可在"问答助手"中直接提问
+- 支持对文档内容进行编辑和补充
+- 可添加标签便于分类检索`
+}

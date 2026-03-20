@@ -2,39 +2,39 @@
 
 /** 知识库空间实体（对应后端 KnowledgeSpace entity） */
 export interface KnowledgeSpace {
-  /** 唯一 ID，后端自增主键 */
   id: number
-  /** 空间名称 */
   name: string
-  /** 空间描述 */
   description: string
-  /** 封面色（hex，用于卡片视觉区分） */
+  /** 封面色（hex） */
   coverColor: string
-  /** 空间内文章数量（后端聚合字段） */
+  /** 后端聚合的文章数量 */
   articleCount: number
-  /** 创建时间（ISO 8601） */
   createdAt: string
-  /** 更新时间（ISO 8601） */
   updatedAt: string
 }
 
-/** POST /knowledge/spaces 请求体 */
 export interface CreateSpaceDto {
   name: string
   description: string
   coverColor: string
 }
 
-/** PATCH /knowledge/spaces/:id 请求体 */
 export type UpdateSpaceDto = Partial<CreateSpaceDto>
 
-/** 空间列表响应 */
 export interface SpaceListResponse {
   items: KnowledgeSpace[]
   total: number
 }
 
 // ─── 文章（二级，归属某个空间） ───────────────────────────────────────────────
+// 文章可以手动编写，也可以通过上传文件（PDF/MD/TXT/DOCX 等）解析后自动生成。
+// 两种方式的产物完全一致，都是 KnowledgeArticle，均可点击查看。
+
+/** 支持上传的文件格式 */
+export type DocumentFormat = 'pdf' | 'md' | 'txt' | 'docx' | 'doc' | 'js' | 'ts' | 'vue'
+
+/** 上传文章的处理状态（仅 source=upload 时有效） */
+export type UploadStatus = 'uploading' | 'parsing' | 'parsed' | 'failed'
 
 /** 知识库文章实体（对应后端 KnowledgeArticle entity） */
 export interface KnowledgeArticle {
@@ -42,21 +42,33 @@ export interface KnowledgeArticle {
   id: number
   /** 所属空间 ID，外键 */
   spaceId: number
-  /** 文章标题 */
+  /** 文章标题（上传文件时自动取文件名，解析后可修改） */
   title: string
-  /** 文章正文（支持 Markdown） */
+  /** 文章正文（支持 Markdown；上传文件由后端提取文本后填充） */
   content: string
   /** 标签列表 */
   tags: string[]
   /** 在空间内的排序序号 */
   sortOrder: number
-  /** 创建时间（ISO 8601） */
   createdAt: string
-  /** 更新时间（ISO 8601） */
   updatedAt: string
+
+  // ── 上传来源字段（可选，仅文件上传时存在）─────────────────────────────────
+  /** 来源：手动编写 or 文件上传 */
+  source?: 'manual' | 'upload'
+  /** 原始文件名（source=upload 时存在） */
+  originalFileName?: string
+  /** 文件格式（source=upload 时存在） */
+  fileFormat?: DocumentFormat
+  /** 文件大小（字节，source=upload 时存在） */
+  fileSize?: number
+  /** 上传/解析状态（source=upload 时存在，parsed 后与普通文章完全等同） */
+  uploadStatus?: UploadStatus
+  /** 上传进度 0-100（uploadStatus=uploading 时有效） */
+  uploadProgress?: number
 }
 
-/** POST /knowledge/articles 请求体 */
+/** POST /knowledge/articles 手动创建请求体 */
 export interface CreateArticleDto {
   spaceId: number
   title: string
@@ -64,10 +76,15 @@ export interface CreateArticleDto {
   tags: string[]
 }
 
-/** PATCH /knowledge/articles/:id 请求体 */
+/** PATCH /knowledge/articles/:id 更新请求体 */
 export type UpdateArticleDto = Partial<Omit<CreateArticleDto, 'spaceId'>>
 
-/** 文章列表响应 */
+/** POST /knowledge/articles/upload 文件上传请求体（multipart/form-data） */
+export interface UploadArticleDto {
+  spaceId: number
+  file: File
+}
+
 export interface ArticleListResponse {
   items: KnowledgeArticle[]
   total: number
