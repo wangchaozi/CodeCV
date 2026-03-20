@@ -3,6 +3,7 @@ import LoginPage from '../pages/auth/LoginPage'
 import RegisterPage from '../pages/auth/RegisterPage'
 import DashboardLayout from '../pages/dashboard/DashboardLayout'
 import DashboardPage from '../pages/dashboard/DashboardPage'
+import ResumeAnalysisPage from '../pages/dashboard/ResumeAnalysisPage'
 import KnowledgeSpacesPage from '../pages/knowledge/KnowledgeSpacesPage'
 import KnowledgeSpaceDetailPage from '../pages/knowledge/KnowledgeSpaceDetailPage'
 import { ProtectedRoute } from '../components/ProtectedRoute'
@@ -21,6 +22,7 @@ export const router = createBrowserRouter([
     children: [
       { index: true, element: <Navigate to="library" replace /> },
       { path: 'library', element: <DashboardPage /> },
+      { path: 'resume/:resumeId', element: <ResumeAnalysisPage /> },
     ],
   },
   {

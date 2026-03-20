@@ -1,7 +1,8 @@
 import { lazy, Suspense, memo, useState, useCallback } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Button, Tag } from 'antd'
 import { motion } from 'framer-motion'
-import { FolderOpenDot, FileText } from 'lucide-react'
+import { FolderOpenDot, FileText, BarChart2 } from 'lucide-react'
 import { useAuthStore } from '../../store/auth.store'
 import type { Resume } from '../../types/resume.types'
 
@@ -23,10 +24,12 @@ const mockResumes: Resume[] = [
 interface ResumeRowProps {
   resume: Resume
   onView: (resume: Resume) => void
+  onAnalyse: (resume: Resume) => void
 }
 
-const ResumeRow = memo(function ResumeRow({ resume, onView }: ResumeRowProps) {
+const ResumeRow = memo(function ResumeRow({ resume, onView, onAnalyse }: ResumeRowProps) {
   const handleView = useCallback(() => onView(resume), [onView, resume])
+  const handleAnalyse = useCallback(() => onAnalyse(resume), [onAnalyse, resume])
 
   return (
     <div className="dashboard-row">
@@ -53,7 +56,16 @@ const ResumeRow = memo(function ResumeRow({ resume, onView }: ResumeRowProps) {
       </div>
       <div className="col-actions">
         <Button type="link" size="small" onClick={handleView}>
-          查看
+          预览
+        </Button>
+        <Button
+          type="link"
+          size="small"
+          icon={<BarChart2 size={12} />}
+          onClick={handleAnalyse}
+          style={{ color: '#4f46e5' }}
+        >
+          解析
         </Button>
         <Button type="link" size="small" danger>
           删除
@@ -65,6 +77,7 @@ const ResumeRow = memo(function ResumeRow({ resume, onView }: ResumeRowProps) {
 
 export default function DashboardPage() {
   const { user } = useAuthStore()
+  const navigate = useNavigate()
   const [selectedResume, setSelectedResume] = useState<Resume | null>(null)
   const [drawerOpen, setDrawerOpen] = useState(false)
 
@@ -72,6 +85,10 @@ export default function DashboardPage() {
     setSelectedResume(resume)
     setDrawerOpen(true)
   }, [])
+
+  const handleAnalyse = useCallback((resume: Resume) => {
+    navigate(`/dashboard/resume/${resume.id}`)
+  }, [navigate])
 
   const handleCloseDrawer = useCallback(() => {
     setDrawerOpen(false)
@@ -119,7 +136,7 @@ export default function DashboardPage() {
             transition={{ duration: 0.4 }}
           >
             {mockResumes.map((item) => (
-              <ResumeRow key={item.id} resume={item} onView={handleView} />
+              <ResumeRow key={item.id} resume={item} onView={handleView} onAnalyse={handleAnalyse} />
             ))}
           </motion.div>
         </div>

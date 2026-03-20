@@ -15,6 +15,7 @@ import type { User } from '../../types/auth.types'
 interface DashboardSidebarProps {
   user: User | null
   onLogout: () => void
+  onUploadClick: () => void
 }
 
 interface NavItem {
@@ -51,6 +52,7 @@ const navGroups: NavGroup[] = [
 export const DashboardSidebar = memo(function DashboardSidebar({
   user,
   onLogout,
+  onUploadClick,
 }: DashboardSidebarProps) {
   const navigate = useNavigate()
   const { pathname } = useLocation()
@@ -58,7 +60,11 @@ export const DashboardSidebar = memo(function DashboardSidebar({
   const isActive = (path: string | null) =>
     path !== null && (pathname === path || pathname.startsWith(path + '/'))
 
-  const handleNavClick = (path: string | null) => {
+  const handleNavClick = (key: string, path: string | null) => {
+    if (key === 'upload') {
+      onUploadClick()
+      return
+    }
     if (path === null) {
       message.info('该功能正在开发中，敬请期待')
       return
@@ -86,12 +92,12 @@ export const DashboardSidebar = memo(function DashboardSidebar({
               <button
                 key={key}
                 type="button"
-                className={`sidebar-nav-item${isActive(path) ? ' is-active' : ''}${path === null ? ' is-disabled' : ''}`}
-                onClick={() => handleNavClick(path)}
+                className={`sidebar-nav-item${isActive(path) ? ' is-active' : ''}${path === null && key !== 'upload' ? ' is-disabled' : ''}`}
+                onClick={() => handleNavClick(key, path)}
               >
                 <Icon size={17} />
                 <span>{label}</span>
-                {path === null && <span className="sidebar-nav-soon">即将上线</span>}
+                {path === null && key !== 'upload' && <span className="sidebar-nav-soon">即将上线</span>}
               </button>
             ))}
           </div>
