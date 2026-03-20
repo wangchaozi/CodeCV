@@ -696,3 +696,22 @@
   font-size: 13px;
 }
 
+/* ─── Sidebar "即将上线" 标签 ─── */
+
+.sidebar-nav-item.is-disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.sidebar-nav-soon {
+  margin-left: auto;
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.15);
+  color: rgba(243, 244, 246, 0.8);
+  line-height: 1.6;
+}
+
+/* 知识库页面样式见 pages/knowledge/knowledge.css */
+

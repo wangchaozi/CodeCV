@@ -1,5 +1,6 @@
 import { memo } from 'react'
-import { Button } from 'antd'
+import { useNavigate, useLocation } from 'react-router-dom'
+import { Button, message } from 'antd'
 import {
   Zap,
   LogOut,
@@ -13,34 +14,58 @@ import type { User } from '../../types/auth.types'
 
 interface DashboardSidebarProps {
   user: User | null
-  activeKey?: string
   onLogout: () => void
 }
 
-// 模块级静态数据，避免每次渲染重新创建（rendering-hoist-jsx 原则）
-const navGroups = [
+interface NavItem {
+  key: string
+  icon: React.ElementType
+  label: string
+  /** 对应路由路径，null 表示功能尚未上线 */
+  path: string | null
+}
+
+interface NavGroup {
+  title: string
+  items: NavItem[]
+}
+
+const navGroups: NavGroup[] = [
   {
     title: '简历管理',
     items: [
-      { key: 'upload', icon: UploadCloud, label: '上传简历' },
-      { key: 'library', icon: FileText, label: '简历库' },
+      { key: 'upload', icon: UploadCloud, label: '上传简历', path: null },
+      { key: 'library', icon: FileText, label: '简历库', path: '/dashboard/library' },
     ],
   },
   {
     title: '面试·知识',
     items: [
-      { key: 'records', icon: History, label: '面试记录' },
-      { key: 'knowledge', icon: BookOpen, label: '知识库' },
-      { key: 'assistant', icon: MessageCircle, label: '问答助手' },
+      { key: 'records', icon: History, label: '面试记录', path: null },
+      { key: 'knowledge', icon: BookOpen, label: '知识库', path: '/knowledge' },
+      { key: 'assistant', icon: MessageCircle, label: '问答助手', path: null },
     ],
   },
 ]
 
 export const DashboardSidebar = memo(function DashboardSidebar({
   user,
-  activeKey = 'library',
   onLogout,
 }: DashboardSidebarProps) {
+  const navigate = useNavigate()
+  const { pathname } = useLocation()
+
+  const isActive = (path: string | null) =>
+    path !== null && (pathname === path || pathname.startsWith(path + '/'))
+
+  const handleNavClick = (path: string | null) => {
+    if (path === null) {
+      message.info('该功能正在开发中，敬请期待')
+      return
+    }
+    navigate(path)
+  }
+
   return (
     <aside className="dashboard-sidebar">
       <div className="sidebar-logo">
@@ -57,14 +82,16 @@ export const DashboardSidebar = memo(function DashboardSidebar({
         {navGroups.map((group) => (
           <div key={group.title} className="sidebar-nav-group">
             <p className="sidebar-nav-title">{group.title}</p>
-            {group.items.map(({ key, icon: Icon, label }) => (
+            {group.items.map(({ key, icon: Icon, label, path }) => (
               <button
                 key={key}
                 type="button"
-                className={`sidebar-nav-item${key === activeKey ? ' is-active' : ''}`}
+                className={`sidebar-nav-item${isActive(path) ? ' is-active' : ''}${path === null ? ' is-disabled' : ''}`}
+                onClick={() => handleNavClick(path)}
               >
                 <Icon size={17} />
                 <span>{label}</span>
+                {path === null && <span className="sidebar-nav-soon">即将上线</span>}
               </button>
             ))}
           </div>
