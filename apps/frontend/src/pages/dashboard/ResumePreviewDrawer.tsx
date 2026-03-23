@@ -1,4 +1,4 @@
-import { memo, useMemo, lazy, Suspense } from 'react'
+import { memo, useMemo, lazy, Suspense, useState, useEffect, useRef } from 'react'
 import { Drawer, Progress, Tag, Divider, Tabs } from 'antd'
 import {
   RadarChart,
@@ -18,20 +18,22 @@ import {
   AlertCircle,
   FileX,
 } from 'lucide-react'
-import type { Resume } from '../../types/resume.types'
+import type { ResumeRecord } from '../../api/resume'
+import client from '../../api/client'
 
-// bundle-dynamic-imports: PdfViewer 含 pdfjs 运行时，仅在打开 PDF Tab 时加载
 const PdfViewer = lazy(() =>
   import('./PdfViewer').then((m) => ({ default: m.PdfViewer })),
 )
 
 interface ResumePreviewDrawerProps {
-  resume: Resume | null
+  resume: ResumeRecord | null
   open: boolean
   onClose: () => void
 }
 
-const SCORE_INSIGHTS: Record<string, string[]> = {
+// ─── 评分辅助 ─────────────────────────────────────────────────────────────────
+
+const SCORE_INSIGHTS = {
   high: [
     '项目描述量化指标丰富，突出了业务价值',
     '技术栈与目标岗位匹配度高，关键词覆盖完整',
@@ -62,25 +64,21 @@ function getScoreLevel(score: number) {
   if (score >= 70) return 'medium'
   return 'low'
 }
-
 function getStrokeColor(score: number) {
   if (score >= 85) return '#22c55e'
   if (score >= 70) return '#facc15'
   return '#f97316'
 }
-
 function getScoreLabel(score: number) {
   if (score >= 85) return { text: '优秀', color: 'success' as const }
   if (score >= 70) return { text: '良好', color: 'warning' as const }
   return { text: '待优化', color: 'error' as const }
 }
-
 function getScoreHint(score: number) {
   if (score >= 85) return '优秀简历，与目标岗位高度匹配，强烈推荐投递'
   if (score >= 70) return '良好简历，建议按 AI 建议小幅优化后投递'
   return '简历需要针对性优化，建议重点改进后再投递'
 }
-
 function buildRadarData(score: number) {
   const offsets = [3, 6, -4, 2, -7]
   return DIMENSION_LABELS.map((subject, i) => ({
@@ -90,21 +88,20 @@ function buildRadarData(score: number) {
   }))
 }
 
-// ── AI 分析面板（纯展示，单独 memo 避免 PDF Tab 切换时重渲染）────────────
-interface AnalysisPanelProps {
-  resume: Resume
-}
+// ─── AI 分析面板 ──────────────────────────────────────────────────────────────
 
-const AnalysisPanel = memo(function AnalysisPanel({ resume }: AnalysisPanelProps) {
-  const radarData = useMemo(() => buildRadarData(resume.score), [resume.score])
-  const level = getScoreLevel(resume.score)
-  const strokeColor = getStrokeColor(resume.score)
-  const scoreLabel = getScoreLabel(resume.score)
+const AnalysisPanel = memo(function AnalysisPanel({ resume }: { resume: ResumeRecord }) {
+  const score = resume.score ?? 0
+  const radarData = useMemo(() => buildRadarData(score), [score])
+  const level = getScoreLevel(score)
+  const strokeColor = getStrokeColor(score)
+  const scoreLabel = getScoreLabel(score)
   const insights = SCORE_INSIGHTS[level]
+  const statusLabel = resume.status === 'done' ? '已完成'
+    : resume.status === 'error' ? '解析失败' : 'AI 解析中'
 
   return (
     <div className="preview-analysis">
-      {/* AI 综合评分 */}
       <div className="preview-section">
         <div className="preview-section-title">
           <BarChart3 size={15} color="#4f46e5" />
@@ -113,7 +110,7 @@ const AnalysisPanel = memo(function AnalysisPanel({ resume }: AnalysisPanelProps
         <div className="preview-score-row">
           <Progress
             type="circle"
-            percent={resume.score}
+            percent={score}
             size={88}
             strokeColor={strokeColor}
             format={(v) => <span className="preview-score-number">{v}</span>}
@@ -121,18 +118,15 @@ const AnalysisPanel = memo(function AnalysisPanel({ resume }: AnalysisPanelProps
           <div className="preview-score-detail">
             <div className="preview-score-tags">
               <Tag color={scoreLabel.color}>{scoreLabel.text}</Tag>
-              <Tag color={resume.status === '已完成' ? 'success' : 'processing'}>
-                {resume.status}
-              </Tag>
+              <Tag color={resume.status === 'done' ? 'success' : 'processing'}>{statusLabel}</Tag>
             </div>
-            <p className="preview-score-hint">{getScoreHint(resume.score)}</p>
+            <p className="preview-score-hint">{getScoreHint(score)}</p>
           </div>
         </div>
       </div>
 
       <Divider style={{ margin: '16px 0' }} />
 
-      {/* 能力维度雷达图 */}
       <div className="preview-section">
         <div className="preview-section-title">
           <BarChart3 size={15} color="#4f46e5" />
@@ -157,7 +151,6 @@ const AnalysisPanel = memo(function AnalysisPanel({ resume }: AnalysisPanelProps
             />
           </RadarChart>
         </ResponsiveContainer>
-
         <div className="preview-dimension-list">
           {radarData.map(({ subject, value }) => (
             <div key={subject} className="preview-dimension-item">
@@ -178,7 +171,6 @@ const AnalysisPanel = memo(function AnalysisPanel({ resume }: AnalysisPanelProps
 
       <Divider style={{ margin: '16px 0' }} />
 
-      {/* AI 分析建议 */}
       <div className="preview-section">
         <div className="preview-section-title">
           <Lightbulb size={15} color="#4f46e5" />
@@ -187,11 +179,10 @@ const AnalysisPanel = memo(function AnalysisPanel({ resume }: AnalysisPanelProps
         <ul className="preview-insights">
           {insights.map((insight, i) => (
             <li key={i} className="preview-insight-item">
-              {i < 2 ? (
-                <CheckCircle size={14} className="preview-insight-icon insight-ok" />
-              ) : (
-                <AlertCircle size={14} className="preview-insight-icon insight-warn" />
-              )}
+              {i < 2
+                ? <CheckCircle size={14} className="preview-insight-icon insight-ok" />
+                : <AlertCircle size={14} className="preview-insight-icon insight-warn" />
+              }
               <span>{insight}</span>
             </li>
           ))}
@@ -201,24 +192,84 @@ const AnalysisPanel = memo(function AnalysisPanel({ resume }: AnalysisPanelProps
   )
 })
 
-// ── 无 PDF 文件占位 ──────────────────────────────────────────────────────────
-function NoPdfPlaceholder() {
+// ─── PDF 预览：从后端拉取 blob ─────────────────────────────────────────────────
+
+function PdfTab({ resumeId }: { resumeId: string }) {
+  const [blobUrl, setBlobUrl] = useState<string | null>(null)
+  const [fetching, setFetching] = useState(false)
+  const [err, setErr] = useState(false)
+  const blobUrlRef = useRef<string | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    setFetching(true)
+    setErr(false)
+
+    client
+      .get(`/resume/${resumeId}/download`, { responseType: 'blob' })
+      .then((res) => {
+        if (cancelled) return
+        const url = URL.createObjectURL(res.data as Blob)
+        blobUrlRef.current = url
+        setBlobUrl(url)
+      })
+      .catch(() => { if (!cancelled) setErr(true) })
+      .finally(() => { if (!cancelled) setFetching(false) })
+
+    return () => {
+      cancelled = true
+      if (blobUrlRef.current) {
+        URL.revokeObjectURL(blobUrlRef.current)
+        blobUrlRef.current = null
+      }
+    }
+  }, [resumeId])
+
+  if (fetching) {
+    return (
+      <div className="pdf-loading" style={{ position: 'relative', padding: '80px 0' }}>
+        <div className="pdf-loading-spinner" />
+        <span>加载文件中...</span>
+      </div>
+    )
+  }
+  if (err || !blobUrl) {
+    return (
+      <div className="pdf-no-file">
+        <FileX size={44} color="#d1d5db" />
+        <p className="pdf-no-file-text">文件加载失败</p>
+        <p className="pdf-no-file-sub">请检查网络或重新上传</p>
+      </div>
+    )
+  }
+
   return (
-    <div className="pdf-no-file">
-      <FileX size={44} color="#d1d5db" />
-      <p className="pdf-no-file-text">暂无 PDF 文件</p>
-      <p className="pdf-no-file-sub">上传简历后可在此处直接预览原始文件</p>
-    </div>
+    <Suspense
+      fallback={
+        <div className="pdf-suspense-loading">
+          <div className="pdf-loading-spinner" />
+          <p>加载 PDF 引擎...</p>
+        </div>
+      }
+    >
+      <PdfViewer url={blobUrl} />
+    </Suspense>
   )
 }
 
-// ── 主 Drawer ─────────────────────────────────────────────────────────────────
+// ─── 主 Drawer ────────────────────────────────────────────────────────────────
+
 export const ResumePreviewDrawer = memo(function ResumePreviewDrawer({
   resume,
   open,
   onClose,
 }: ResumePreviewDrawerProps) {
   if (!resume) return null
+
+  const isPdf = resume.mimeType === 'application/pdf'
+  const uploadDate = new Date(resume.createTime).toLocaleDateString('zh-CN', {
+    year: 'numeric', month: '2-digit', day: '2-digit',
+  })
 
   const tabItems = [
     {
@@ -229,21 +280,15 @@ export const ResumePreviewDrawer = memo(function ResumePreviewDrawer({
     {
       key: 'pdf',
       label: 'PDF 预览',
-      children: resume.url ? (
-        // async-suspense-boundaries: pdfjs 运行时懒加载，Suspense 兜底 loading
-        <Suspense
-          fallback={
-            <div className="pdf-suspense-loading">
-              <div className="pdf-loading-spinner" />
-              <p>加载 PDF 引擎...</p>
-            </div>
-          }
-        >
-          <PdfViewer url={resume.url} />
-        </Suspense>
-      ) : (
-        <NoPdfPlaceholder />
-      ),
+      children: isPdf
+        ? <PdfTab resumeId={resume.id} />
+        : (
+          <div className="pdf-no-file">
+            <FileX size={44} color="#d1d5db" />
+            <p className="pdf-no-file-text">仅支持 PDF 预览</p>
+            <p className="pdf-no-file-sub">DOCX 格式暂不支持在线预览</p>
+          </div>
+        ),
     },
   ]
 
@@ -261,23 +306,21 @@ export const ResumePreviewDrawer = memo(function ResumePreviewDrawer({
       destroyOnClose
       styles={{ body: { padding: '0', display: 'flex', flexDirection: 'column', overflow: 'hidden' } }}
     >
-      {/* 文件信息 */}
       <div className="preview-file-card" style={{ margin: '16px 24px 0' }}>
         <div className="preview-file-icon-wrap">
           <FileText size={22} color="#4f46e5" />
         </div>
         <div className="preview-file-meta">
-          <p className="preview-file-name" title={resume.name}>
-            {resume.name}
+          <p className="preview-file-name" title={resume.originalName}>
+            {resume.originalName}
           </p>
           <p className="preview-file-date">
             <Calendar size={12} />
-            <span>{resume.date} 上传</span>
+            <span>{uploadDate} 上传</span>
           </p>
         </div>
       </div>
 
-      {/* Tabs */}
       <Tabs
         defaultActiveKey="analysis"
         items={tabItems}

@@ -344,6 +344,44 @@
   gap: 4px;
 }
 
+/* ─── 表格加载 / 空状态 ─── */
+
+.dashboard-table-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 0;
+}
+
+.dashboard-table-empty {
+  padding: 40px 0;
+}
+
+/* ─── 分页 ─── */
+
+.dashboard-pagination {
+  display: flex;
+  justify-content: flex-end;
+  padding: 14px 4px 0;
+}
+
+/* ─── 解析中状态行 ─── */
+
+.status-parsing {
+  background: #eff6ff;
+  color: #2563eb;
+}
+
+.status-error {
+  background: #fef2f2;
+  color: #dc2626;
+}
+
+/* ─── spin 动画（行内使用） ─── */
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
 @media (max-width: 960px) {
   .dashboard-sidebar {
     display: none;
@@ -1395,6 +1433,62 @@
 .ra-start-btn.ant-btn:hover {
   transform: translateY(-1px);
   box-shadow: 0 6px 20px rgba(79, 70, 229, 0.45);
+}
+
+/* ─── 全页加载/错误状态 ─── */
+
+.ra-loading-center {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  color: #6b7280;
+  font-size: 14px;
+}
+
+/* ─── 解析中占位 ─── */
+
+.ra-content-single {
+  grid-template-columns: 1fr !important;
+}
+
+.ra-parsing-placeholder {
+  background: #ffffff;
+  border-radius: 16px;
+  padding: 80px 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  box-shadow: 0 4px 20px rgba(15, 23, 42, 0.05);
+  text-align: center;
+}
+
+.ra-parsing-icon {
+  margin-bottom: 8px;
+}
+
+.ra-parsing-spin {
+  animation: ra-spin 1s linear infinite;
+}
+
+@keyframes ra-spin {
+  to { transform: rotate(360deg); }
+}
+
+.ra-parsing-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: #111827;
+}
+
+.ra-parsing-sub {
+  margin: 0;
+  font-size: 13px;
+  color: #9ca3af;
 }
 
 @media (max-width: 900px) {

@@ -26,7 +26,8 @@ export const PdfViewer = memo(function PdfViewer({ url }: PdfViewerProps) {
     setError(false)
   }, [])
 
-  const onLoadError = useCallback(() => {
+  const onLoadError = useCallback((err: Error) => {
+    console.error('[PdfViewer] load error:', err)
     setLoading(false)
     setError(true)
   }, [])

@@ -16,7 +16,7 @@ export default defineConfig({
       '/api': {
         target: 'http://localhost:3000',
         changeOrigin: true,
-        rewrite: (p) => p.replace(/^\/api/, ''),
+        // 后端已设置 app.setGlobalPrefix('api')，路径原样转发
       },
     },
   },

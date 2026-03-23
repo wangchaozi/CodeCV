@@ -4,11 +4,8 @@ import { pdfjs } from 'react-pdf'
 import './index.css'
 import App from './App.tsx'
 
-// 使用 Vite 的 URL import 特性配置 PDF.js Worker，避免打包时丢失
-pdfjs.GlobalWorkerOptions.workerSrc = new URL(
-  'pdfjs-dist/build/pdf.worker.min.mjs',
-  import.meta.url,
-).toString()
+// 通过 unpkg CDN 加载 PDF.js Worker，避免 Vite dev 模式本地路径解析不稳定的问题
+pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

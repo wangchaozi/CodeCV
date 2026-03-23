@@ -1,6 +1,6 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { Button, Tag, Tooltip, message } from 'antd'
+import { Button, Tag, Tooltip, message, Spin } from 'antd'
 import { motion } from 'framer-motion'
 import {
   ChevronLeft,
@@ -10,207 +10,28 @@ import {
   Code2,
   GraduationCap,
   FolderGit2,
-  Target,
-  Zap,
   MessageSquare,
   Brain,
   Layers,
-  Star,
   TrendingUp,
   PlayCircle,
   Sparkles,
+  RefreshCw,
+  Loader2,
 } from 'lucide-react'
+import { resumeApi, type ResumeRecord, type ParsedResumeContent, type InterviewFocus } from '../../api/resume'
 
-// ─── Mock 解析数据 ──────────────────────────────────────────────────────────────
+// ─── 面试侧重点 Icon 映射 ──────────────────────────────────────────────────────
 
-const MOCK_RESUME_DATA: Record<string, ResumeData> = {
-  default: {
-    name: '京东科技-三年经验-物流平台和智能管理系统.pdf',
-    score: 86,
-    candidate: {
-      name: '王子昊',
-      phone: '138****8888',
-      email: 'wzh@example.com',
-      location: '北京',
-      experience: '3 年工作经验',
-    },
-    summary:
-      '资深前端工程师，专注于 Vue3 / React 技术栈，主导过物流平台前端架构重构及智能管理系统研发，具备良好的工程化思维和性能优化经验。',
-    experience: [
-      {
-        id: 1,
-        company: '京东科技',
-        role: '高级前端工程师',
-        period: '2022.06 — 2025.01',
-        bullets: [
-          '主导物流可视化平台前端架构重构，引入微前端方案，使构建时间缩短 40%',
-          '主导智能管理系统研发（Vue3 + TypeScript），实现可配置化大屏组件体系',
-          '封装公司级 UI 组件库，覆盖 30+ 基础组件，被 5 个业务团队采用',
-          '推动前端 CI/CD 流程建设，提升发布频率 3 倍，故障率下降 60%',
-        ],
-      },
-      {
-        id: 2,
-        company: '某互联网公司',
-        role: '前端工程师',
-        period: '2020.07 — 2022.05',
-        bullets: [
-          '参与 B2B 电商平台前端开发，负责商品管理、订单结算等核心模块',
-          '使用 Webpack + React 完成项目工程化改造，首屏加载提速 55%',
-          '协助组内推广单元测试规范，核心模块覆盖率从 0 提升至 76%',
-        ],
-      },
-    ],
-    skills: [
-      { category: '前端框架', items: ['Vue3', 'React 18', 'Nuxt3', 'Next.js'] },
-      { category: '工程化', items: ['Vite', 'Webpack5', 'Rollup', 'pnpm Monorepo'] },
-      { category: '语言 & 样式', items: ['TypeScript', 'JavaScript ES2022', 'Sass/Less', 'CSS Modules'] },
-      { category: '状态管理', items: ['Pinia', 'Zustand', 'Redux Toolkit'] },
-      { category: '测试 & 质量', items: ['Vitest', 'Jest', 'Playwright', 'ESLint + Prettier'] },
-      { category: '后端 & 工具', items: ['Node.js', 'NestJS', 'Docker', 'Git', 'MySQL'] },
-    ],
-    projects: [
-      {
-        id: 1,
-        name: '物流可视化平台（微前端重构）',
-        period: '2023.03 — 2024.06',
-        bullets: [
-          '使用 qiankun 微前端方案将 3 个独立子系统整合，减少重复代码 30%',
-          '设计通用状态共享机制，解决跨应用通信及权限隔离问题',
-          '接入 ECharts + WebSocket 实现物流数据实时大屏，支持亿级数据渲染',
-        ],
-      },
-      {
-        id: 2,
-        name: '智能管理系统大屏组件库',
-        period: '2022.09 — 2023.02',
-        bullets: [
-          '基于 Vue3 + Canvas 构建可拖拽、可配置化大屏组件系统，支持 20+ 组件类型',
-          '设计 JSON Schema 驱动的配置协议，实现低代码拖拽搭建能力',
-          '首屏渲染性能优化，FCP 从 3.2s 降低至 1.1s',
-        ],
-      },
-    ],
-    education: [
-      {
-        school: '北京邮电大学',
-        degree: '计算机科学与技术 · 本科',
-        period: '2016 — 2020',
-      },
-    ],
-  },
+const FOCUS_ICON_MAP: Record<string, React.ElementType> = {
+  tech: Code2,
+  architecture: Layers,
+  project: FolderGit2,
+  performance: TrendingUp,
+  soft: MessageSquare,
 }
 
-interface ResumeData {
-  name: string
-  score: number
-  candidate: {
-    name: string
-    phone: string
-    email: string
-    location: string
-    experience: string
-  }
-  summary: string
-  experience: {
-    id: number
-    company: string
-    role: string
-    period: string
-    bullets: string[]
-  }[]
-  skills: { category: string; items: string[] }[]
-  projects: {
-    id: number
-    name: string
-    period: string
-    bullets: string[]
-  }[]
-  education: { school: string; degree: string; period: string }[]
-}
-
-// ─── Mock 面试侧重点数据 ────────────────────────────────────────────────────────
-
-interface FocusTopic {
-  label: string
-  weight: 'high' | 'medium' | 'low'
-  desc: string
-}
-
-interface FocusCategory {
-  id: string
-  icon: React.ElementType
-  title: string
-  color: string
-  bg: string
-  topics: FocusTopic[]
-}
-
-const FOCUS_CATEGORIES: FocusCategory[] = [
-  {
-    id: 'tech',
-    icon: Code2,
-    title: '技术深度',
-    color: '#4f46e5',
-    bg: '#eef2ff',
-    topics: [
-      { label: 'Vue3 响应式原理', weight: 'high', desc: '深入考察 Proxy/Reflect、track/trigger 机制' },
-      { label: 'React Hooks 原理', weight: 'high', desc: 'useState/useEffect 底层实现与闭包陷阱' },
-      { label: 'TypeScript 类型系统', weight: 'medium', desc: '泛型、条件类型、映射类型' },
-      { label: '浏览器渲染机制', weight: 'medium', desc: '重排重绘、合成层、事件循环' },
-    ],
-  },
-  {
-    id: 'architecture',
-    icon: Layers,
-    title: '系统设计',
-    color: '#0ea5e9',
-    bg: '#f0f9ff',
-    topics: [
-      { label: '微前端架构', weight: 'high', desc: '结合项目经历深入追问 qiankun 原理与难点' },
-      { label: '组件库设计', weight: 'high', desc: '组件封装思路、文档规范、版本管理' },
-      { label: '前端工程化', weight: 'medium', desc: 'Vite/Webpack 构建优化、Tree-shaking' },
-      { label: 'Monorepo 实践', weight: 'medium', desc: 'pnpm workspace、包依赖管理策略' },
-    ],
-  },
-  {
-    id: 'project',
-    icon: FolderGit2,
-    title: '项目亮点',
-    color: '#16a34a',
-    bg: '#f0fdf4',
-    topics: [
-      { label: '物流大屏性能优化', weight: 'high', desc: '追问亿级数据渲染方案，虚拟列表/Canvas' },
-      { label: 'CI/CD 流程建设', weight: 'medium', desc: '具体方案、遇到的挑战及解决思路' },
-      { label: '组件库推广策略', weight: 'medium', desc: '如何推动跨团队采用，遇到的阻力' },
-      { label: '大屏 FCP 优化', weight: 'high', desc: '3.2s → 1.1s 的具体优化手段' },
-    ],
-  },
-  {
-    id: 'performance',
-    icon: TrendingUp,
-    title: '性能优化',
-    color: '#d97706',
-    bg: '#fffbeb',
-    topics: [
-      { label: '首屏加载优化', weight: 'high', desc: '代码分割、懒加载、预加载策略' },
-      { label: 'WebSocket 大数据', weight: 'medium', desc: '数据量大时的渲染策略和内存管理' },
-      { label: 'Bundle 分析', weight: 'medium', desc: '使用什么工具分析，如何减小体积' },
-    ],
-  },
-  {
-    id: 'soft',
-    icon: MessageSquare,
-    title: '综合能力',
-    color: '#7c3aed',
-    bg: '#faf5ff',
-    topics: [
-      { label: '团队协作 & 技术推广', weight: 'medium', desc: '如何推动组件库在多团队落地' },
-      { label: '技术决策思路', weight: 'medium', desc: '微前端选型依据与取舍' },
-      { label: '项目复盘能力', weight: 'low', desc: '如何总结和沉淀项目经验' },
-    ],
-  },
-]
+// ─── 权重配置 ─────────────────────────────────────────────────────────────────
 
 const WEIGHT_CONFIG = {
   high: { label: '重点', color: '#dc2626', bg: '#fef2f2' },
@@ -229,7 +50,7 @@ function SectionTitle({ icon: Icon, title, color }: { icon: React.ElementType; t
   )
 }
 
-function AnalysisPanel({ data }: { data: ResumeData }) {
+function AnalysisPanel({ data }: { data: ParsedResumeContent }) {
   return (
     <div className="ra-left-panel">
       {/* 个人信息 */}
@@ -266,9 +87,7 @@ function AnalysisPanel({ data }: { data: ResumeData }) {
                 </div>
                 <span className="ra-exp-role">{exp.role}</span>
                 <ul className="ra-bullet-list">
-                  {exp.bullets.map((b, i) => (
-                    <li key={i}>{b}</li>
-                  ))}
+                  {exp.bullets.map((b, i) => <li key={i}>{b}</li>)}
                 </ul>
               </div>
             </div>
@@ -306,9 +125,7 @@ function AnalysisPanel({ data }: { data: ResumeData }) {
                   <span className="ra-exp-period">{proj.period}</span>
                 </div>
                 <ul className="ra-bullet-list">
-                  {proj.bullets.map((b, i) => (
-                    <li key={i}>{b}</li>
-                  ))}
+                  {proj.bullets.map((b, i) => <li key={i}>{b}</li>)}
                 </ul>
               </div>
             </div>
@@ -331,8 +148,8 @@ function AnalysisPanel({ data }: { data: ResumeData }) {
   )
 }
 
-function FocusPanel({ onStart }: { onStart: () => void }) {
-  const [expanded, setExpanded] = useState<string | null>('tech')
+function FocusPanel({ focusData, onStart }: { focusData: InterviewFocus[]; onStart: () => void }) {
+  const [expanded, setExpanded] = useState<string | null>(focusData[0]?.id ?? null)
 
   return (
     <div className="ra-right-panel">
@@ -345,58 +162,60 @@ function FocusPanel({ onStart }: { onStart: () => void }) {
       </div>
 
       <div className="ra-focus-list">
-        {FOCUS_CATEGORIES.map((cat) => (
-          <div
-            key={cat.id}
-            className={`ra-focus-category${expanded === cat.id ? ' is-expanded' : ''}`}
-          >
-            <button
-              type="button"
-              className="ra-focus-category-header"
-              style={{ borderColor: expanded === cat.id ? cat.color : 'transparent' }}
-              onClick={() => setExpanded(expanded === cat.id ? null : cat.id)}
+        {focusData.map((cat) => {
+          const IconComp = FOCUS_ICON_MAP[cat.id] ?? Code2
+          const bg = cat.color + '18'
+          return (
+            <div
+              key={cat.id}
+              className={`ra-focus-category${expanded === cat.id ? ' is-expanded' : ''}`}
             >
-              <div className="ra-focus-category-icon" style={{ background: cat.bg, color: cat.color }}>
-                <cat.icon size={14} />
-              </div>
-              <span className="ra-focus-category-title">{cat.title}</span>
-              <span className="ra-focus-category-count" style={{ color: cat.color, background: cat.bg }}>
-                {cat.topics.length} 个考点
-              </span>
-              <span className="ra-focus-chevron">{expanded === cat.id ? '▲' : '▼'}</span>
-            </button>
-
-            {expanded === cat.id && (
-              <motion.div
-                className="ra-focus-topics"
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
-                exit={{ opacity: 0, height: 0 }}
-                transition={{ duration: 0.2 }}
+              <button
+                type="button"
+                className="ra-focus-category-header"
+                style={{ borderColor: expanded === cat.id ? cat.color : 'transparent' }}
+                onClick={() => setExpanded(expanded === cat.id ? null : cat.id)}
               >
-                {cat.topics.map((topic) => {
-                  const wCfg = WEIGHT_CONFIG[topic.weight]
-                  return (
-                    <Tooltip key={topic.label} title={topic.desc} placement="left">
-                      <div className="ra-focus-topic-item">
-                        <span
-                          className="ra-focus-weight"
-                          style={{ color: wCfg.color, background: wCfg.bg }}
-                        >
-                          {wCfg.label}
-                        </span>
-                        <span className="ra-focus-topic-label">{topic.label}</span>
-                      </div>
-                    </Tooltip>
-                  )
-                })}
-              </motion.div>
-            )}
-          </div>
-        ))}
+                <div className="ra-focus-category-icon" style={{ background: bg, color: cat.color }}>
+                  <IconComp size={14} />
+                </div>
+                <span className="ra-focus-category-title">{cat.title}</span>
+                <span className="ra-focus-category-count" style={{ color: cat.color, background: bg }}>
+                  {cat.topics.length} 个考点
+                </span>
+                <span className="ra-focus-chevron">{expanded === cat.id ? '▲' : '▼'}</span>
+              </button>
+
+              {expanded === cat.id && (
+                <motion.div
+                  className="ra-focus-topics"
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  transition={{ duration: 0.2 }}
+                >
+                  {cat.topics.map((topic) => {
+                    const wCfg = WEIGHT_CONFIG[topic.weight]
+                    return (
+                      <Tooltip key={topic.label} title={topic.desc} placement="left">
+                        <div className="ra-focus-topic-item">
+                          <span
+                            className="ra-focus-weight"
+                            style={{ color: wCfg.color, background: wCfg.bg }}
+                          >
+                            {wCfg.label}
+                          </span>
+                          <span className="ra-focus-topic-label">{topic.label}</span>
+                        </div>
+                      </Tooltip>
+                    )
+                  })}
+                </motion.div>
+              )}
+            </div>
+          )
+        })}
       </div>
 
-      {/* 开始面试按钮 */}
       <div className="ra-start-wrap">
         <div className="ra-start-hint">
           <Brain size={14} color="#6b7280" />
@@ -417,19 +236,121 @@ function FocusPanel({ onStart }: { onStart: () => void }) {
   )
 }
 
+// ─── 解析中状态占位 ────────────────────────────────────────────────────────────
+
+function ParsingPlaceholder({ onReparse }: { onReparse: () => void }) {
+  return (
+    <div className="ra-parsing-placeholder">
+      <div className="ra-parsing-icon">
+        <Loader2 size={36} className="ra-parsing-spin" color="#4f46e5" />
+      </div>
+      <p className="ra-parsing-title">AI 正在解析简历...</p>
+      <p className="ra-parsing-sub">通常需要 3 ~ 10 秒，请稍候</p>
+      <Button
+        icon={<RefreshCw size={14} />}
+        size="small"
+        onClick={onReparse}
+        style={{ marginTop: 8 }}
+      >
+        手动刷新
+      </Button>
+    </div>
+  )
+}
+
 // ─── 主页面 ────────────────────────────────────────────────────────────────────
 
 export default function ResumeAnalysisPage() {
   const { resumeId } = useParams<{ resumeId: string }>()
   const navigate = useNavigate()
 
-  const data = MOCK_RESUME_DATA[resumeId ?? ''] ?? MOCK_RESUME_DATA.default
+  const [resume, setResume] = useState<ResumeRecord | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  const stopPoll = useCallback(() => {
+    if (pollRef.current) {
+      clearInterval(pollRef.current)
+      pollRef.current = null
+    }
+  }, [])
+
+  const fetchResume = useCallback(async (id: string, silent = false) => {
+    if (!silent) setLoading(true)
+    try {
+      const res = await resumeApi.getById(id)
+      setResume(res.data)
+      setError(null)
+      // 如果已解析完成，停止轮询
+      if (res.data.status === 'done' || res.data.status === 'error') {
+        stopPoll()
+      }
+    } catch {
+      setError('获取简历详情失败，请检查网络或刷新页面')
+      stopPoll()
+    } finally {
+      setLoading(false)
+    }
+  }, [stopPoll])
+
+  // 初次加载 + 如果仍在解析则轮询
+  useEffect(() => {
+    if (!resumeId) return
+    void fetchResume(resumeId)
+  }, [resumeId, fetchResume])
+
+  useEffect(() => {
+    if (!resume || !resumeId) return
+    if (resume.status === 'parsing' || resume.status === 'pending') {
+      if (!pollRef.current) {
+        pollRef.current = setInterval(() => void fetchResume(resumeId, true), 3000)
+      }
+    } else {
+      stopPoll()
+    }
+    return () => stopPoll()
+  }, [resume?.status, resumeId, fetchResume, stopPoll])
 
   const handleStartInterview = useCallback(() => {
     message.info('面试功能正在开发中，敬请期待')
   }, [])
 
-  const scoreColor = data.score >= 85 ? '#16a34a' : data.score >= 70 ? '#d97706' : '#dc2626'
+  const handleReparse = useCallback(async () => {
+    if (!resumeId) return
+    try {
+      await resumeApi.reparse(resumeId)
+      message.success('已触发重新解析')
+      void fetchResume(resumeId, true)
+    } catch {
+      message.error('重新解析失败')
+    }
+  }, [resumeId, fetchResume])
+
+  if (loading) {
+    return (
+      <div className="ra-root">
+        <div className="ra-loading-center">
+          <Spin size="large" />
+          <span>加载中...</span>
+        </div>
+      </div>
+    )
+  }
+
+  if (error || !resume) {
+    return (
+      <div className="ra-root">
+        <div className="ra-loading-center">
+          <p style={{ color: '#dc2626' }}>{error ?? '简历不存在'}</p>
+          <Button onClick={() => navigate('/dashboard/library')}>返回简历库</Button>
+        </div>
+      </div>
+    )
+  }
+
+  const isParsing = resume.status === 'pending' || resume.status === 'parsing'
+  const scoreColor = (resume.score ?? 0) >= 85 ? '#16a34a' : (resume.score ?? 0) >= 70 ? '#d97706' : '#dc2626'
 
   return (
     <div className="ra-root">
@@ -445,18 +366,28 @@ export default function ResumeAnalysisPage() {
         </button>
         <div className="ra-topbar-divider" />
         <FileText size={14} color="#4f46e5" style={{ flexShrink: 0 }} />
-        <span className="ra-topbar-name" title={data.name}>{data.name}</span>
+        <span className="ra-topbar-name" title={resume.originalName}>{resume.originalName}</span>
 
         <div className="ra-topbar-right">
-          <div className="ra-topbar-score">
-            <span className="ra-topbar-score-label">AI 评分</span>
-            <span className="ra-topbar-score-value" style={{ color: scoreColor }}>{data.score}</span>
-          </div>
-          <Tag color="blue" style={{ borderRadius: 999, fontSize: 12 }}>解析完成</Tag>
+          {resume.score != null && (
+            <div className="ra-topbar-score">
+              <span className="ra-topbar-score-label">AI 评分</span>
+              <span className="ra-topbar-score-value" style={{ color: scoreColor }}>{resume.score}</span>
+            </div>
+          )}
+          <Tag
+            color={resume.status === 'done' ? 'success' : resume.status === 'error' ? 'error' : 'processing'}
+            style={{ borderRadius: 999, fontSize: 12 }}
+          >
+            {resume.status === 'done' ? '解析完成'
+              : resume.status === 'error' ? '解析失败'
+              : 'AI 解析中...'}
+          </Tag>
           <Button
             type="primary"
             icon={<PlayCircle size={15} />}
             onClick={handleStartInterview}
+            disabled={isParsing}
             style={{ borderRadius: 8 }}
           >
             开始面试
@@ -466,18 +397,23 @@ export default function ResumeAnalysisPage() {
 
       {/* 主体 */}
       <div className="ra-body">
-        <motion.div
-          className="ra-content"
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3 }}
-        >
-          {/* 左侧：解析内容 */}
-          <AnalysisPanel data={data} />
-
-          {/* 右侧：面试侧重点 */}
-          <FocusPanel onStart={handleStartInterview} />
-        </motion.div>
+        {isParsing ? (
+          <div className="ra-content ra-content-single">
+            <ParsingPlaceholder onReparse={() => void handleReparse()} />
+          </div>
+        ) : (
+          <motion.div
+            className="ra-content"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3 }}
+          >
+            {resume.parsedContent && <AnalysisPanel data={resume.parsedContent} />}
+            {resume.interviewFocus && resume.interviewFocus.length > 0 && (
+              <FocusPanel focusData={resume.interviewFocus} onStart={handleStartInterview} />
+            )}
+          </motion.div>
+        )}
       </div>
     </div>
   )
