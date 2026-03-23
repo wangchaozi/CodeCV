@@ -2,9 +2,10 @@ import { lazy, Suspense, memo, useState, useCallback, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Button, Tag, Pagination, Spin, Popconfirm, Empty, message } from 'antd'
 import { motion, AnimatePresence } from 'framer-motion'
-import { FolderOpenDot, FileText, BarChart2, Loader2, RefreshCw } from 'lucide-react'
+import { FolderOpenDot, FileText, BarChart2, Loader2, RefreshCw, UploadCloud } from 'lucide-react'
 import { useAuthStore } from '../../store/auth.store'
 import { resumeApi, type ResumeRecord, type ResumeStatus } from '../../api/resume'
+import { ResumeUploadModal } from './ResumeUploadModal'
 
 const ResumePreviewDrawer = lazy(() =>
   import('./ResumePreviewDrawer').then((m) => ({ default: m.ResumePreviewDrawer })),
@@ -126,6 +127,7 @@ export default function DashboardPage() {
 
   const [selectedResume, setSelectedResume] = useState<ResumeRecord | null>(null)
   const [drawerOpen, setDrawerOpen] = useState(false)
+  const [uploadOpen, setUploadOpen] = useState(false)
 
   // ─── 拉取列表 ───────────────────────────────────────────────────────────────
 
@@ -194,6 +196,14 @@ export default function DashboardPage() {
           >
             刷新
           </Button>
+          <Button
+            type="primary"
+            icon={<UploadCloud size={14} />}
+            size="small"
+            onClick={() => setUploadOpen(true)}
+          >
+            上传简历
+          </Button>
           <Tag color="purple" className="dashboard-tag">
             {user?.role === 'admin' ? '管理员' : '普通用户'}
           </Tag>
@@ -228,7 +238,7 @@ export default function DashboardPage() {
             <div className="dashboard-table-empty">
               <Empty
                 image={Empty.PRESENTED_IMAGE_SIMPLE}
-                description="暂无简历，点击左侧「上传简历」开始"
+                description="暂无简历，点击右上角「上传简历」开始"
               />
             </div>
           ) : (
@@ -275,6 +285,14 @@ export default function DashboardPage() {
           onClose={() => setDrawerOpen(false)}
         />
       </Suspense>
+
+      <ResumeUploadModal
+        open={uploadOpen}
+        onClose={(uploaded) => {
+          setUploadOpen(false)
+          if (uploaded) void fetchList(1)
+        }}
+      />
     </main>
   )
 }

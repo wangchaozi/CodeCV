@@ -4,7 +4,6 @@ import { Button, message } from 'antd'
 import {
   Zap,
   LogOut,
-  UploadCloud,
   FileText,
   History,
   BookOpen,
@@ -15,7 +14,6 @@ import type { User } from '../../types/auth.types'
 interface DashboardSidebarProps {
   user: User | null
   onLogout: () => void
-  onUploadClick: () => void
 }
 
 interface NavItem {
@@ -35,7 +33,6 @@ const navGroups: NavGroup[] = [
   {
     title: '简历管理',
     items: [
-      { key: 'upload', icon: UploadCloud, label: '上传简历', path: null },
       { key: 'library', icon: FileText, label: '简历库', path: '/dashboard/library' },
     ],
   },
@@ -52,7 +49,6 @@ const navGroups: NavGroup[] = [
 export const DashboardSidebar = memo(function DashboardSidebar({
   user,
   onLogout,
-  onUploadClick,
 }: DashboardSidebarProps) {
   const navigate = useNavigate()
   const { pathname } = useLocation()
@@ -60,11 +56,7 @@ export const DashboardSidebar = memo(function DashboardSidebar({
   const isActive = (path: string | null) =>
     path !== null && (pathname === path || pathname.startsWith(path + '/'))
 
-  const handleNavClick = (key: string, path: string | null) => {
-    if (key === 'upload') {
-      onUploadClick()
-      return
-    }
+  const handleNavClick = (_key: string, path: string | null) => {
     if (path === null) {
       message.info('该功能正在开发中，敬请期待')
       return
@@ -92,12 +84,12 @@ export const DashboardSidebar = memo(function DashboardSidebar({
               <button
                 key={key}
                 type="button"
-                className={`sidebar-nav-item${isActive(path) ? ' is-active' : ''}${path === null && key !== 'upload' ? ' is-disabled' : ''}`}
+                className={`sidebar-nav-item${isActive(path) ? ' is-active' : ''}${path === null ? ' is-disabled' : ''}`}
                 onClick={() => handleNavClick(key, path)}
               >
                 <Icon size={17} />
                 <span>{label}</span>
-                {path === null && key !== 'upload' && <span className="sidebar-nav-soon">即将上线</span>}
+                {path === null && <span className="sidebar-nav-soon">即将上线</span>}
               </button>
             ))}
           </div>

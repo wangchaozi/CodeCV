@@ -14,7 +14,8 @@ import { resumeApi } from '../../api/resume'
 
 interface ResumeUploadModalProps {
   open: boolean
-  onClose: () => void
+  /** uploaded=true 表示本次关闭前已成功上传过至少一份简历 */
+  onClose: (uploaded?: boolean) => void
 }
 
 type UploadStatus = 'idle' | 'uploading' | 'parsing' | 'done' | 'error'
@@ -124,7 +125,7 @@ export function ResumeUploadModal({ open, onClose }: ResumeUploadModalProps) {
   )
 
   const handleViewAnalysis = useCallback(() => {
-    onClose()
+    onClose(true)
     if (resumeId) {
       navigate(`/dashboard/resume/${resumeId}`)
     }
@@ -140,12 +141,13 @@ export function ResumeUploadModal({ open, onClose }: ResumeUploadModalProps) {
 
   const handleClose = useCallback(() => {
     if (status === 'uploading' || status === 'parsing') return
+    const wasUploaded = status === 'done'
     setFile(null)
     setStatus('idle')
     setProgress(0)
     setErrorMsg('')
     setResumeId(null)
-    onClose()
+    onClose(wasUploaded)
   }, [status, onClose])
 
   const isProcessing = status === 'uploading' || status === 'parsing'
