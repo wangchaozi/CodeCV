@@ -3,14 +3,20 @@
   display: flex;
   background: #f5f6fb;
   color: #111827;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
-    'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+    "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
 }
 
 .dashboard-sidebar {
   width: 240px;
   padding: 24px 20px;
-  background: radial-gradient(circle at top left, #6366f1 0, #4f46e5 40%, #111827 100%);
+  background: radial-gradient(
+    circle at top left,
+    #6366f1 0,
+    #4f46e5 40%,
+    #111827 100%
+  );
   color: #e5e7eb;
   display: flex;
   flex-direction: column;
@@ -82,7 +88,9 @@
   color: rgba(243, 244, 246, 0.9);
   cursor: pointer;
   font-size: 13px;
-  transition: background 0.18s ease, transform 0.12s ease;
+  transition:
+    background 0.18s ease,
+    transform 0.12s ease;
 }
 
 .sidebar-nav-item:hover {
@@ -185,11 +193,6 @@
   border: none;
   outline: none;
   font-size: 13px;
-}
-
-.dashboard-tag {
-  border-radius: 999px !important;
-  padding-inline: 10px !important;
 }
 
 .dashboard-card {
@@ -379,7 +382,9 @@
 
 /* ─── spin 动画（行内使用） ─── */
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 @media (max-width: 960px) {
@@ -694,7 +699,9 @@
 }
 
 @keyframes pdf-spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .pdf-error,
@@ -764,7 +771,9 @@
   align-items: center;
   gap: 8px;
   cursor: pointer;
-  transition: border-color 0.18s, background 0.18s;
+  transition:
+    border-color 0.18s,
+    background 0.18s;
   margin-bottom: 4px;
   text-align: center;
 }
@@ -895,7 +904,9 @@
 }
 
 @keyframes resume-spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .resume-upload-done-card {
@@ -960,7 +971,9 @@
   color: #6b7280;
   font-size: 13px;
   cursor: pointer;
-  transition: background 0.15s, color 0.15s;
+  transition:
+    background 0.15s,
+    color 0.15s;
   flex-shrink: 0;
   white-space: nowrap;
 }
@@ -1427,7 +1440,9 @@
   background: linear-gradient(135deg, #4f46e5, #7c3aed);
   border: none;
   box-shadow: 0 4px 14px rgba(79, 70, 229, 0.35);
-  transition: transform 0.15s, box-shadow 0.15s;
+  transition:
+    transform 0.15s,
+    box-shadow 0.15s;
 }
 
 .ra-start-btn.ant-btn:hover {
@@ -1475,7 +1490,9 @@
 }
 
 @keyframes ra-spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .ra-parsing-title {
@@ -1500,5 +1517,3 @@
     position: static;
   }
 }
-
-

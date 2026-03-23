@@ -1,51 +1,82 @@
-import { lazy, Suspense, memo, useState, useCallback, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { Button, Tag, Pagination, Spin, Popconfirm, Empty, message } from 'antd'
-import { motion, AnimatePresence } from 'framer-motion'
-import { FolderOpenDot, FileText, BarChart2, Loader2, RefreshCw, UploadCloud } from 'lucide-react'
-import { useAuthStore } from '../../store/auth.store'
-import { resumeApi, type ResumeRecord, type ResumeStatus } from '../../api/resume'
-import { ResumeUploadModal } from './ResumeUploadModal'
+import { lazy, Suspense, memo, useState, useCallback, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import {
+  Button,
+  Tag,
+  Pagination,
+  Spin,
+  Popconfirm,
+  Empty,
+  message,
+} from "antd";
+import { motion, AnimatePresence } from "framer-motion";
+import {
+  FolderOpenDot,
+  FileText,
+  BarChart2,
+  Loader2,
+  RefreshCw,
+  UploadCloud,
+} from "lucide-react";
+import { useAuthStore } from "../../store/auth.store";
+import {
+  resumeApi,
+  type ResumeRecord,
+  type ResumeStatus,
+} from "../../api/resume";
+import { ResumeUploadModal } from "./ResumeUploadModal";
 
 const ResumePreviewDrawer = lazy(() =>
-  import('./ResumePreviewDrawer').then((m) => ({ default: m.ResumePreviewDrawer })),
-)
+  import("./ResumePreviewDrawer").then((m) => ({
+    default: m.ResumePreviewDrawer,
+  })),
+);
 
 // ─── 常量 ─────────────────────────────────────────────────────────────────────
 
-const PAGE_SIZE = 10
+const PAGE_SIZE = 10;
 
-const STATUS_MAP: Record<ResumeStatus, { label: string; type: 'done' | 'pending' | 'parsing' | 'error' }> = {
-  done:    { label: '已完成',   type: 'done' },
-  parsing: { label: 'AI 解析中', type: 'parsing' },
-  pending: { label: '排队中',   type: 'pending' },
-  error:   { label: '解析失败', type: 'error' },
-}
+const STATUS_MAP: Record<
+  ResumeStatus,
+  { label: string; type: "done" | "pending" | "parsing" | "error" }
+> = {
+  done: { label: "已完成", type: "done" },
+  parsing: { label: "AI 解析中", type: "parsing" },
+  pending: { label: "排队中", type: "pending" },
+  error: { label: "解析失败", type: "error" },
+};
 
 function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString('zh-CN', {
-    year: 'numeric', month: '2-digit', day: '2-digit',
-  })
+  return new Date(iso).toLocaleDateString("zh-CN", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
 }
 
 function formatSize(bytes: number) {
-  if (bytes >= 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB`
-  return `${(bytes / 1024).toFixed(0)} KB`
+  if (bytes >= 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+  return `${(bytes / 1024).toFixed(0)} KB`;
 }
 
 // ─── 行组件 ───────────────────────────────────────────────────────────────────
 
 interface ResumeRowProps {
-  resume: ResumeRecord
-  onView: (r: ResumeRecord) => void
-  onAnalyse: (r: ResumeRecord) => void
-  onDelete: (r: ResumeRecord) => Promise<void>
+  resume: ResumeRecord;
+  onView: (r: ResumeRecord) => void;
+  onAnalyse: (r: ResumeRecord) => void;
+  onDelete: (r: ResumeRecord) => Promise<void>;
 }
 
-const ResumeRow = memo(function ResumeRow({ resume, onView, onAnalyse, onDelete }: ResumeRowProps) {
-  const { label, type } = STATUS_MAP[resume.status]
-  const isParsing = resume.status === 'parsing' || resume.status === 'pending'
-  const isDone = resume.status === 'done'
+const ResumeRow = memo(function ResumeRow({
+  resume,
+  onView,
+  onAnalyse,
+  onDelete,
+}: ResumeRowProps) {
+  const { label, type } = STATUS_MAP[resume.status];
+  const isParsing = resume.status === "parsing" || resume.status === "pending";
+  const isDone = resume.status === "done";
 
   return (
     <div className="dashboard-row">
@@ -60,8 +91,19 @@ const ResumeRow = memo(function ResumeRow({ resume, onView, onAnalyse, onDelete 
 
       <div className="col-score">
         {isParsing ? (
-          <span style={{ display: 'flex', alignItems: 'center', gap: 5, color: '#9ca3af', fontSize: 12 }}>
-            <Loader2 size={12} style={{ animation: 'spin 1s linear infinite' }} />
+          <span
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 5,
+              color: "#9ca3af",
+              fontSize: 12,
+            }}
+          >
+            <Loader2
+              size={12}
+              style={{ animation: "spin 1s linear infinite" }}
+            />
             解析中
           </span>
         ) : resume.score != null ? (
@@ -75,7 +117,7 @@ const ResumeRow = memo(function ResumeRow({ resume, onView, onAnalyse, onDelete 
             <span className="score-text">{resume.score}</span>
           </>
         ) : (
-          <span style={{ color: '#dc2626', fontSize: 12 }}>解析失败</span>
+          <span style={{ color: "#dc2626", fontSize: 12 }}>解析失败</span>
         )}
       </div>
 
@@ -84,7 +126,12 @@ const ResumeRow = memo(function ResumeRow({ resume, onView, onAnalyse, onDelete 
       </div>
 
       <div className="col-actions">
-        <Button type="link" size="small" onClick={() => onView(resume)} disabled={!isDone}>
+        <Button
+          type="link"
+          size="small"
+          onClick={() => onView(resume)}
+          disabled={!isDone}
+        >
           预览
         </Button>
         <Button
@@ -93,7 +140,7 @@ const ResumeRow = memo(function ResumeRow({ resume, onView, onAnalyse, onDelete 
           icon={<BarChart2 size={12} />}
           onClick={() => onAnalyse(resume)}
           disabled={!isDone}
-          style={{ color: isDone ? '#4f46e5' : undefined }}
+          style={{ color: isDone ? "#4f46e5" : undefined }}
         >
           解析
         </Button>
@@ -111,74 +158,84 @@ const ResumeRow = memo(function ResumeRow({ resume, onView, onAnalyse, onDelete 
         </Popconfirm>
       </div>
     </div>
-  )
-})
+  );
+});
 
 // ─── 主页面 ───────────────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
-  const { user } = useAuthStore()
-  const navigate = useNavigate()
+  const { user } = useAuthStore();
+  const navigate = useNavigate();
 
-  const [items, setItems] = useState<ResumeRecord[]>([])
-  const [total, setTotal] = useState(0)
-  const [page, setPage] = useState(1)
-  const [loading, setLoading] = useState(false)
+  const [items, setItems] = useState<ResumeRecord[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [loading, setLoading] = useState(false);
 
-  const [selectedResume, setSelectedResume] = useState<ResumeRecord | null>(null)
-  const [drawerOpen, setDrawerOpen] = useState(false)
-  const [uploadOpen, setUploadOpen] = useState(false)
+  const [selectedResume, setSelectedResume] = useState<ResumeRecord | null>(
+    null,
+  );
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [uploadOpen, setUploadOpen] = useState(false);
 
   // ─── 拉取列表 ───────────────────────────────────────────────────────────────
 
   const fetchList = useCallback(async (p: number) => {
-    setLoading(true)
+    setLoading(true);
     try {
       const res = await resumeApi.list({
         limit: PAGE_SIZE,
         offset: (p - 1) * PAGE_SIZE,
-      })
-      setItems(res.data.items)
-      setTotal(res.data.total)
+      });
+      setItems(res.data.items);
+      setTotal(res.data.total);
     } catch {
-      message.error('获取简历列表失败')
+      message.error("获取简历列表失败");
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }, [])
+  }, []);
 
-  useEffect(() => { void fetchList(page) }, [page, fetchList])
+  useEffect(() => {
+    void fetchList(page);
+  }, [page, fetchList]);
 
   // ─── 操作 ───────────────────────────────────────────────────────────────────
 
   const handleView = useCallback((r: ResumeRecord) => {
-    setSelectedResume(r)
-    setDrawerOpen(true)
-  }, [])
+    setSelectedResume(r);
+    setDrawerOpen(true);
+  }, []);
 
-  const handleAnalyse = useCallback((r: ResumeRecord) => {
-    navigate(`/dashboard/resume/${r.id}`)
-  }, [navigate])
+  const handleAnalyse = useCallback(
+    (r: ResumeRecord) => {
+      navigate(`/dashboard/resume/${r.id}`);
+    },
+    [navigate],
+  );
 
-  const handleDelete = useCallback(async (r: ResumeRecord) => {
-    try {
-      await resumeApi.remove(r.id)
-      message.success('已删除')
-      // 若当前页删完了就回到上一页
-      const newTotal = total - 1
-      const maxPage = Math.max(1, Math.ceil(newTotal / PAGE_SIZE))
-      const targetPage = page > maxPage ? maxPage : page
-      if (targetPage !== page) {
-        setPage(targetPage)
-      } else {
-        void fetchList(targetPage)
+  const handleDelete = useCallback(
+    async (r: ResumeRecord) => {
+      try {
+        await resumeApi.remove(r.id);
+        message.success("已删除");
+        // 若当前页删完了就回到上一页
+        const newTotal = total - 1;
+        const maxPage = Math.max(1, Math.ceil(newTotal / PAGE_SIZE));
+        const targetPage = page > maxPage ? maxPage : page;
+        if (targetPage !== page) {
+          setPage(targetPage);
+        } else {
+          void fetchList(targetPage);
+        }
+      } catch {
+        message.error("删除失败，请重试");
       }
-    } catch {
-      message.error('删除失败，请重试')
-    }
-  }, [total, page, fetchList])
+    },
+    [total, page, fetchList],
+  );
 
-  const handlePageChange = useCallback((p: number) => setPage(p), [])
+  const handlePageChange = useCallback((p: number) => setPage(p), []);
 
   return (
     <main className="dashboard-main">
@@ -204,9 +261,6 @@ export default function DashboardPage() {
           >
             上传简历
           </Button>
-          <Tag color="purple" className="dashboard-tag">
-            {user?.role === 'admin' ? '管理员' : '普通用户'}
-          </Tag>
         </div>
       </header>
 
@@ -216,9 +270,7 @@ export default function DashboardPage() {
             <FolderOpenDot size={18} />
             <span>我的简历</span>
           </div>
-          <span className="dashboard-card-sub">
-            共 {total} 份简历
-          </span>
+          <span className="dashboard-card-sub">共 {total} 份简历</span>
         </div>
 
         <div className="dashboard-table">
@@ -289,10 +341,10 @@ export default function DashboardPage() {
       <ResumeUploadModal
         open={uploadOpen}
         onClose={(uploaded) => {
-          setUploadOpen(false)
-          if (uploaded) void fetchList(1)
+          setUploadOpen(false);
+          if (uploaded) void fetchList(1);
         }}
       />
     </main>
-  )
+  );
 }
