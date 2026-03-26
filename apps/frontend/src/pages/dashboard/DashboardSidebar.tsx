@@ -8,6 +8,7 @@ import {
   History,
   BookOpen,
   MessageCircle,
+  Settings,
 } from 'lucide-react'
 import type { User } from '../../types/auth.types'
 
@@ -97,21 +98,30 @@ export const DashboardSidebar = memo(function DashboardSidebar({
       </nav>
 
       <div className="sidebar-user">
-        <div className="sidebar-user-avatar">
-          {(user?.username ?? 'U').charAt(0).toUpperCase()}
-        </div>
-        <div className="sidebar-user-info">
-          <span className="sidebar-user-name">{user?.username ?? '未命名用户'}</span>
-          <span className="sidebar-user-email">{user?.email ?? '未设置邮箱'}</span>
-        </div>
+        <button
+          type="button"
+          className="sidebar-user-main"
+          onClick={() => navigate('/dashboard/profile')}
+        >
+          <div className="sidebar-user-avatar">
+            {user?.avatar
+              ? <img src={user.avatar} alt="avatar" className="sidebar-avatar-img" />
+              : (user?.username ?? 'U').charAt(0).toUpperCase()
+            }
+          </div>
+          <div className="sidebar-user-info">
+            <span className="sidebar-user-name">{user?.username ?? '未命名用户'}</span>
+            <span className="sidebar-user-email">{user?.email ?? '未设置邮箱'}</span>
+          </div>
+          <Settings size={13} className="sidebar-user-settings-icon" />
+        </button>
         <Button
           type="text"
           size="small"
           icon={<LogOut size={14} />}
           onClick={onLogout}
-        >
-          退出
-        </Button>
+          title="退出登录"
+        />
       </div>
     </aside>
   )

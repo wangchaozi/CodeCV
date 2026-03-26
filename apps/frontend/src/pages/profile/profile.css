@@ -1,0 +1,260 @@
+.profile-root {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background: #f5f6fb;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+/* ─── 顶部导航栏 ─── */
+
+.profile-topbar {
+  height: 52px;
+  background: #ffffff;
+  border-bottom: 1px solid #e5e7eb;
+  display: flex;
+  align-items: center;
+  padding: 0 24px;
+  gap: 12px;
+  flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.profile-back-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  color: #6b7280;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  flex-shrink: 0;
+}
+
+.profile-back-btn:hover {
+  background: #f3f4f6;
+  color: #111827;
+}
+
+.profile-topbar-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: #111827;
+}
+
+/* ─── 主体内容 ─── */
+
+.profile-body {
+  padding: 28px 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  max-width: 860px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+/* ─── 头像卡片 ─── */
+
+.profile-avatar-card {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  background: #ffffff;
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: 0 4px 20px rgba(15, 23, 42, 0.05);
+}
+
+.profile-avatar-circle {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #4f46e5, #7c3aed);
+  color: #fff;
+  font-size: 28px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.profile-avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.profile-avatar-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.profile-avatar-name {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: #111827;
+}
+
+.profile-avatar-email {
+  margin: 0;
+  font-size: 13px;
+  color: #6b7280;
+}
+
+.profile-role-badge {
+  display: inline-block;
+  margin-top: 4px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 500;
+  background: #eff6ff;
+  color: #1d4ed8;
+  width: fit-content;
+}
+
+.profile-role-badge.is-admin {
+  background: #faf5ff;
+  color: #7c3aed;
+}
+
+/* ─── 卡片区块 ─── */
+
+.profile-section {
+  background: #ffffff;
+  border-radius: 16px;
+  box-shadow: 0 4px 20px rgba(15, 23, 42, 0.05);
+  overflow: hidden;
+}
+
+.profile-section.is-danger {
+  border: 1px solid #fee2e2;
+}
+
+.profile-section-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 16px 24px;
+  border-bottom: 1px solid #f3f4f6;
+  font-size: 14px;
+  font-weight: 600;
+  color: #111827;
+}
+
+.profile-section-header.danger {
+  color: #dc2626;
+  border-bottom-color: #fee2e2;
+}
+
+.profile-section-body {
+  padding: 24px;
+}
+
+/* ─── 表单布局 ─── */
+
+.profile-form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.profile-input-disabled.ant-input[disabled] {
+  color: #9ca3af;
+  background: #f9fafb;
+  cursor: not-allowed;
+}
+
+.profile-save-btn.ant-btn {
+  background: linear-gradient(135deg, #4f46e5, #7c3aed);
+  border: none;
+  border-radius: 8px;
+  font-weight: 500;
+  box-shadow: 0 2px 8px rgba(79, 70, 229, 0.3);
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+
+.profile-save-btn.ant-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(79, 70, 229, 0.4);
+}
+
+/* ─── 危险操作行 ─── */
+
+.profile-danger-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.profile-danger-info {
+  flex: 1;
+}
+
+.profile-danger-title {
+  margin: 0 0 4px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #111827;
+}
+
+.profile-danger-desc {
+  margin: 0;
+  font-size: 13px;
+  color: #6b7280;
+  line-height: 1.5;
+}
+
+/* ─── 注销确认弹窗 ─── */
+
+.profile-modal-title {
+  display: flex;
+  align-items: center;
+}
+
+.profile-modal-body {
+  padding: 4px 0 8px;
+}
+
+.profile-modal-desc {
+  margin: 0 0 10px;
+  font-size: 14px;
+  color: #374151;
+  line-height: 1.6;
+}
+
+.profile-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+@media (max-width: 640px) {
+  .profile-body {
+    padding: 16px;
+  }
+
+  .profile-form-row {
+    grid-template-columns: 1fr;
+  }
+
+  .profile-danger-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
