@@ -40,11 +40,10 @@ export class UserEntity {
   @Exclude() // 序列化时隐藏密码
   password: string;
 
-  @ApiProperty({ description: '头像 URL', required: false, nullable: true })
+  @ApiProperty({ description: '头像 URL 或 base64 数据', required: false, nullable: true })
   @Column({
-    type: 'varchar',
-    length: 255, // URL 最大长度255
-    comment: '头像URL',
+    type: 'text',
+    comment: '头像（URL 或 base64 data URI）',
     nullable: true,
   })
   avatar: string | null;

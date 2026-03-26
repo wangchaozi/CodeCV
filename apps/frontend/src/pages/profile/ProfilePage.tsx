@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Form,
@@ -6,6 +6,7 @@ import {
   Button,
   message,
   Modal,
+  Tooltip,
 } from 'antd'
 import {
   User,
@@ -16,6 +17,7 @@ import {
   Phone,
   Mail,
   Save,
+  Camera,
 } from 'lucide-react'
 import { useAuthStore } from '../../store/auth.store'
 import { userApi } from '../../api/user'
@@ -33,10 +35,35 @@ interface PasswordFormValues {
   confirmPassword: string
 }
 
+/** 将 File 对象压缩为指定尺寸的 JPEG base64 data URI */
+function compressImage(file: File, maxSize = 200): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      const img = new Image()
+      img.onload = () => {
+        const canvas = document.createElement('canvas')
+        const ratio = Math.min(maxSize / img.width, maxSize / img.height, 1)
+        canvas.width = Math.round(img.width * ratio)
+        canvas.height = Math.round(img.height * ratio)
+        const ctx = canvas.getContext('2d')!
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
+        resolve(canvas.toDataURL('image/jpeg', 0.85))
+      }
+      img.onerror = reject
+      img.src = e.target?.result as string
+    }
+    reader.onerror = reject
+    reader.readAsDataURL(file)
+  })
+}
+
 export default function ProfilePage() {
   const navigate = useNavigate()
   const { user, updateUser, logout } = useAuthStore()
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
+  const [avatarLoading, setAvatarLoading] = useState(false)
   const [basicLoading, setBasicLoading] = useState(false)
   const [pwdLoading, setPwdLoading] = useState(false)
   const [deleteModalOpen, setDeleteModalOpen] = useState(false)
@@ -46,6 +73,32 @@ export default function ProfilePage() {
   const [pwdForm] = Form.useForm<PasswordFormValues>()
 
   if (!user) return null
+
+  const handleAvatarFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (!file.type.startsWith('image/')) {
+      message.error('请选择图片文件')
+      return
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      message.error('图片大小不能超过 5MB')
+      return
+    }
+    setAvatarLoading(true)
+    try {
+      const base64 = await compressImage(file, 200)
+      const res = await userApi.update(user.id, { avatar: base64 })
+      updateUser(res.data)
+      message.success('头像已更新')
+    } catch {
+      message.error('头像上传失败，请重试')
+    } finally {
+      setAvatarLoading(false)
+      // 清空 input，允许重复选同一文件
+      e.target.value = ''
+    }
+  }
 
   const handleBasicSubmit = async (values: BasicFormValues) => {
     setBasicLoading(true)
@@ -121,12 +174,32 @@ export default function ProfilePage() {
       <div className="profile-body">
         {/* 用户头像卡片 */}
         <div className="profile-avatar-card">
-          <div className="profile-avatar-circle">
-            {user.avatar
-              ? <img src={user.avatar} alt="avatar" className="profile-avatar-img" />
-              : (user.username ?? 'U').charAt(0).toUpperCase()
-            }
-          </div>
+          <Tooltip title="点击更换头像">
+            <button
+              type="button"
+              className={`profile-avatar-circle profile-avatar-btn${avatarLoading ? ' is-loading' : ''}`}
+              onClick={() => fileInputRef.current?.click()}
+              disabled={avatarLoading}
+            >
+              {user.avatar
+                ? <img src={user.avatar} alt="avatar" className="profile-avatar-img" />
+                : (user.username ?? 'U').charAt(0).toUpperCase()
+              }
+              <div className="profile-avatar-overlay">
+                {avatarLoading
+                  ? <div className="profile-avatar-spinner" />
+                  : <Camera size={20} />
+                }
+              </div>
+            </button>
+          </Tooltip>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            style={{ display: 'none' }}
+            onChange={handleAvatarFileChange}
+          />
           <div className="profile-avatar-info">
             <p className="profile-avatar-name">{user.username}</p>
             <p className="profile-avatar-email">{user.email}</p>
