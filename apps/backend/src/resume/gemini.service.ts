@@ -135,17 +135,29 @@ JSON 结构严格如下：
 
 // ─── Service ───────────────────────────────────────────────────────────────────
 
+/** 仅用于日志：不打印完整 API Key */
+function maskSecret(value: string, head = 6, tail = 4): string {
+  if (!value) return '(empty)';
+  if (value.length <= head + tail) return '***';
+  return `${value.slice(0, head)}…${value.slice(-tail)}`;
+}
+
 @Injectable()
 export class GeminiService {
   private readonly logger = new Logger(GeminiService.name);
   private readonly apiKey: string;
   private readonly modelName: string;
   private readonly apiBase: string;
+  private readonly fetchTimeoutMs: number;
 
   constructor(private readonly config: ConfigService) {
     this.apiKey = this.config.get<string>('GEMINI_API_KEY', '');
     this.modelName = this.config.get<string>('GEMINI_MODEL', 'gemini-3.1-pro-preview');
     this.apiBase = this.config.get<string>('GEMINI_API_BASE', 'https://api.vectorengine.ai');
+    // 大文档 + 长 JSON 输出容易超过 120s，默认 300s，可通过环境变量调整
+    const timeoutRaw = this.config.get<string>('GEMINI_FETCH_TIMEOUT_MS');
+    const parsed = timeoutRaw ? Number.parseInt(timeoutRaw, 10) : NaN;
+    this.fetchTimeoutMs = Number.isFinite(parsed) && parsed > 0 ? parsed : 300_000;
   }
 
   /**
@@ -153,7 +165,8 @@ export class GeminiService {
    * 使用 inline_data 方式，无需本地文本提取
    */
   async parseResume(fileBuffer: Buffer, mimeType: string): Promise<GeminiParseResult> {
-    const apiUrl = `${this.apiBase}/v1beta/models/${this.modelName}:generateContent?key=${this.apiKey}`;
+    const path = `/v1beta/models/${this.modelName}:generateContent`;
+    const apiUrl = `${this.apiBase}${path}?key=${this.apiKey}`;
     const base64Data = fileBuffer.toString('base64');
 
     const requestBody = {
@@ -180,27 +193,92 @@ export class GeminiService {
       },
     };
 
-    this.logger.log(`Calling Gemini API: model=${this.modelName}, mimeType=${mimeType}, size=${fileBuffer.byteLength}B`);
+    const bodyStr = JSON.stringify(requestBody);
+    const approxBodyBytes = Buffer.byteLength(bodyStr, 'utf8');
 
-    const response = await fetch(apiUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(requestBody),
-      signal: AbortSignal.timeout(120_000),
-    });
+    this.logger.log(
+      `[Gemini] 准备请求 | baseUrl=${this.apiBase} path=${path} model=${this.modelName} mimeType=${mimeType}`,
+    );
+    this.logger.log(
+      `[Gemini] 凭证 | apiKey=${maskSecret(this.apiKey)} hasKey=${Boolean(this.apiKey)}`,
+    );
+    this.logger.log(
+      `[Gemini] 负载 | fileBytes=${fileBuffer.byteLength} base64Len=${base64Data.length} promptChars=${RESUME_ANALYSIS_PROMPT.length} jsonBodyBytes≈${approxBodyBytes}`,
+    );
+    this.logger.log(`[Gemini] 超时 | fetchTimeoutMs=${this.fetchTimeoutMs} (可用 GEMINI_FETCH_TIMEOUT_MS 覆盖)`);
+
+    const t0 = Date.now();
+    let response: Response;
+    try {
+      this.logger.debug(`[Gemini] fetch 开始 POST ${this.apiBase}${path}?key=***`);
+      response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: bodyStr,
+        signal: AbortSignal.timeout(this.fetchTimeoutMs),
+      });
+    } catch (err) {
+      const elapsed = Date.now() - t0;
+      const name = err instanceof Error ? err.name : 'Unknown';
+      const msg = err instanceof Error ? err.message : String(err);
+      this.logger.error(
+        `[Gemini] fetch 异常 | afterMs=${elapsed} name=${name} message=${msg}`,
+      );
+      if (name === 'AbortError' || msg.includes('aborted') || msg.includes('timeout')) {
+        this.logger.error(
+          `[Gemini] 疑似超时：当前 GEMINI_FETCH_TIMEOUT_MS=${this.fetchTimeoutMs}，可在 .env 增大该值后重试`,
+        );
+      }
+      throw new InternalServerErrorException(`Gemini 网络请求失败: ${msg}`);
+    }
+
+    const elapsedOk = Date.now() - t0;
+    this.logger.log(`[Gemini] HTTP 响应 | status=${response.status} ok=${response.ok} afterMs=${elapsedOk}`);
 
     if (!response.ok) {
       const errText = await response.text();
-      this.logger.error(`Gemini API error: ${response.status} ${errText}`);
+      this.logger.error(
+        `[Gemini] HTTP 错误体 (前4000字符): ${errText.slice(0, 4000)}${errText.length > 4000 ? '…(truncated)' : ''}`,
+      );
       throw new InternalServerErrorException(`Gemini API 调用失败: ${response.status}`);
     }
 
-    const data = (await response.json()) as GeminiApiResponse;
+    const rawJsonText = await response.text();
+    this.logger.debug(`[Gemini] 响应体长度 rawJsonBytes=${Buffer.byteLength(rawJsonText, 'utf8')}`);
 
-    const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+    let data: GeminiApiResponse;
+    try {
+      data = JSON.parse(rawJsonText) as GeminiApiResponse;
+    } catch (e) {
+      this.logger.error(
+        `[Gemini] 响应不是合法 JSON | parseErr=${e instanceof Error ? e.message : e} head=${rawJsonText.slice(0, 800)}`,
+      );
+      throw new InternalServerErrorException('Gemini 返回非 JSON');
+    }
+
+    if (data?.error) {
+      this.logger.error(`[Gemini] 业务错误 | ${JSON.stringify(data.error)}`);
+      throw new InternalServerErrorException(
+        `Gemini 错误: ${(data.error as { message?: string }).message ?? 'unknown'}`,
+      );
+    }
+
+    const cand0 = data?.candidates?.[0];
+    const finishReason = cand0?.finishReason;
+    const partsLen = cand0?.content?.parts?.length ?? 0;
+    this.logger.log(
+      `[Gemini] 解析结构 | candidates=${data?.candidates?.length ?? 0} parts=${partsLen} finishReason=${finishReason ?? 'n/a'}`,
+    );
+
+    const rawText = cand0?.content?.parts?.[0]?.text ?? '';
     if (!rawText) {
+      this.logger.error(
+        `[Gemini] 无文本内容 | 完整响应摘要: ${JSON.stringify(data).slice(0, 2000)}`,
+      );
       throw new InternalServerErrorException('Gemini 返回内容为空');
     }
+
+    this.logger.debug(`[Gemini] 模型文本长度 textChars=${rawText.length}`);
 
     return this.parseJsonFromText(rawText);
   }
@@ -253,5 +331,6 @@ interface GeminiApiResponse {
     };
     finishReason?: string;
   }>;
-  error?: { message: string; code: number };
+  error?: { message?: string; code?: number; status?: string };
+  promptFeedback?: unknown;
 }
