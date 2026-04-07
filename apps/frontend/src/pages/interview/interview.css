@@ -1,0 +1,408 @@
+/* ─── 答题页面布局 ─────────────────────────────────────────────────────────── */
+
+.iq-root {
+  min-height: 100vh;
+  background: #f8f9fb;
+  display: flex;
+  flex-direction: column;
+}
+
+.iq-generating {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 40px;
+}
+
+.iq-generating-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #1f2937;
+  margin: 0;
+}
+
+.iq-generating-sub {
+  font-size: 13px;
+  color: #6b7280;
+  margin: 0;
+}
+
+/* ─── 顶部栏 ─────────────────────────────────────────────────────────────── */
+
+.iq-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 24px;
+  background: #fff;
+  border-bottom: 1px solid #f1f2f4;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.iq-back {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  color: #6b7280;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: background 0.15s;
+}
+
+.iq-back:hover {
+  background: #f3f4f6;
+  color: #374151;
+}
+
+.iq-header-center {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+}
+
+.iq-timer {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  color: #6b7280;
+  font-variant-numeric: tabular-nums;
+  min-width: 60px;
+  justify-content: flex-end;
+}
+
+/* ─── 题目导航点 ──────────────────────────────────────────────────────────── */
+
+.iq-nav-dots {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 12px 24px 8px;
+  justify-content: center;
+}
+
+.iq-dot {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 2px solid #e5e7eb;
+  background: #fff;
+  cursor: pointer;
+  font-size: 11px;
+  color: #9ca3af;
+  transition: all 0.15s;
+}
+
+.iq-dot.answered {
+  border-color: #4f46e5;
+  background: #ede9fe;
+  color: #4f46e5;
+}
+
+.iq-dot.active {
+  border-color: #4f46e5;
+  background: #4f46e5;
+  color: #fff;
+  transform: scale(1.1);
+}
+
+/* ─── 题目区 ─────────────────────────────────────────────────────────────── */
+
+.iq-body {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  padding: 16px 24px;
+  overflow-y: auto;
+}
+
+.iq-card {
+  width: 100%;
+  max-width: 720px;
+  background: #fff;
+  border-radius: 16px;
+  border: 1px solid #f1f2f4;
+  padding: 28px 32px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
+}
+
+.iq-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+
+.iq-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.iq-question-num {
+  font-size: 13px;
+  font-weight: 600;
+  color: #4f46e5;
+}
+
+.iq-category {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #f3f4f6;
+  color: #6b7280;
+}
+
+.iq-type-badge {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: #9ca3af;
+}
+
+.iq-content {
+  font-size: 16px;
+  font-weight: 500;
+  color: #1f2937;
+  line-height: 1.7;
+  margin: 0 0 24px;
+}
+
+/* 选择题选项 */
+.iq-options {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+}
+
+.iq-option {
+  padding: 12px 16px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  width: 100%;
+  cursor: pointer;
+  transition: all 0.15s;
+  font-size: 14px;
+  color: #374151;
+}
+
+.iq-option:hover {
+  border-color: #4f46e5;
+  background: #fafafe;
+}
+
+.iq-option.ant-radio-wrapper-checked {
+  border-color: #4f46e5;
+  background: #ede9fe;
+  color: #4f46e5;
+  font-weight: 500;
+}
+
+/* 问答题文本框 */
+.iq-textarea {
+  width: 100%;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 14px 16px;
+  font-size: 14px;
+  color: #1f2937;
+  resize: vertical;
+  outline: none;
+  font-family: inherit;
+  line-height: 1.6;
+  transition: border-color 0.15s;
+  background: #fafafa;
+}
+
+.iq-textarea:focus {
+  border-color: #4f46e5;
+  background: #fff;
+}
+
+/* ─── 底部操作栏 ──────────────────────────────────────────────────────────── */
+
+.iq-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 24px;
+  background: #fff;
+  border-top: 1px solid #f1f2f4;
+  position: sticky;
+  bottom: 0;
+  z-index: 10;
+}
+
+.iq-footer-info {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+}
+
+.iq-unanswered-hint {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: #d97706;
+}
+
+/* ─── 结果页 ─────────────────────────────────────────────────────────────── */
+
+.iq-result {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 32px 24px;
+  width: 100%;
+}
+
+.iq-result-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 32px;
+}
+
+.iq-result-title {
+  font-size: 24px;
+  font-weight: 700;
+  color: #1f2937;
+  margin: 0;
+}
+
+.iq-result-score {
+  font-size: 64px;
+  font-weight: 800;
+  line-height: 1;
+  margin: 8px 0 4px;
+}
+
+.iq-result-score-unit {
+  font-size: 24px;
+  font-weight: 600;
+}
+
+.iq-result-stat {
+  font-size: 14px;
+  color: #6b7280;
+  margin: 0;
+}
+
+.iq-result-review {
+  background: #fff;
+  border-radius: 16px;
+  border: 1px solid #f1f2f4;
+  padding: 24px;
+  margin-bottom: 24px;
+}
+
+.iq-review-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #1f2937;
+  margin: 0 0 20px;
+}
+
+.iq-review-item {
+  padding: 16px 0;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.iq-review-item:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.iq-review-item-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.iq-review-num {
+  font-size: 12px;
+  font-weight: 700;
+  color: #fff;
+  background: #4f46e5;
+  padding: 1px 7px;
+  border-radius: 999px;
+}
+
+.iq-review-category {
+  font-size: 12px;
+  color: #9ca3af;
+}
+
+.iq-review-result {
+  font-size: 12px;
+  font-weight: 600;
+  margin-left: auto;
+}
+
+.iq-review-result.correct { color: #16a34a; }
+.iq-review-result.wrong { color: #dc2626; }
+
+.iq-review-content {
+  font-size: 14px;
+  color: #1f2937;
+  margin: 0 0 10px;
+  line-height: 1.6;
+}
+
+.iq-review-answer {
+  display: flex;
+  gap: 8px;
+  font-size: 13px;
+  margin-bottom: 4px;
+}
+
+.iq-review-label {
+  color: #6b7280;
+  white-space: nowrap;
+}
+
+.iq-review-user-ans {
+  color: #1f2937;
+}
+
+.iq-review-user-ans.wrong {
+  color: #dc2626;
+  text-decoration: line-through;
+}
+
+.iq-review-correct-ans {
+  color: #16a34a;
+  font-weight: 600;
+}
+
+.iq-review-explanation {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin-top: 8px;
+  padding: 8px 12px;
+  background: #f8f9fb;
+  border-radius: 8px;
+  font-size: 12px;
+  color: #6b7280;
+  line-height: 1.6;
+}
+
+.iq-result-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+}

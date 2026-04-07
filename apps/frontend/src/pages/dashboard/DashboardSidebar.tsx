@@ -40,7 +40,7 @@ const navGroups: NavGroup[] = [
   {
     title: '面试·知识',
     items: [
-      { key: 'records', icon: History, label: '面试记录', path: null },
+      { key: 'records', icon: History, label: '面试记录', path: '/dashboard/interview-records' },
       { key: 'knowledge', icon: BookOpen, label: '知识库', path: '/knowledge' },
       { key: 'assistant', icon: MessageCircle, label: '问答助手', path: null },
     ],

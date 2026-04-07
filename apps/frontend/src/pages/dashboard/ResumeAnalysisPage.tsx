@@ -313,8 +313,8 @@ export default function ResumeAnalysisPage() {
   }, [resume?.status, resumeId, fetchResume, stopPoll])
 
   const handleStartInterview = useCallback(() => {
-    message.info('面试功能正在开发中，敬请期待')
-  }, [])
+    if (resumeId) navigate(`/interview/${resumeId}`)
+  }, [resumeId, navigate])
 
   const handleReparse = useCallback(async () => {
     if (!resumeId) return

@@ -9,6 +9,23 @@ export interface GeminiParseResult {
   dimensionScores: DimensionScore[];
 }
 
+export type QuestionType = 'multiple_choice' | 'open_ended';
+export type QuestionDifficulty = 'easy' | 'medium' | 'hard';
+
+export interface GeneratedQuestion {
+  type: QuestionType;
+  content: string;
+  options: string[] | null;
+  correctAnswer: string | null;
+  explanation: string | null;
+  category: string;
+  difficulty: QuestionDifficulty;
+}
+
+export interface GeminiQuestionResult {
+  questions: GeneratedQuestion[];
+}
+
 // ─── 简历解析 Prompt ──────────────────────────────────────────────────────────
 // 要求模型输出严格的 JSON，结构与前端 TypeScript 接口完全对应
 const RESUME_ANALYSIS_PROMPT = `
@@ -129,6 +146,61 @@ JSON 结构严格如下：
     { "label": "工程素养", "score": <整数>, "color": "#16a34a" },
     { "label": "表达清晰度", "score": <整数>, "color": "#d97706" },
     { "label": "综合匹配度", "score": <整数>, "color": "#7c3aed" }
+  ]
+}
+`.trim();
+
+// ─── 题目生成 Prompt ─────────────────────────────────────────────────────────
+const QUESTION_GENERATION_PROMPT = `
+你是一位资深技术面试官，请根据以下候选人简历信息，生成一套针对性强的面试题目。
+
+## 简历信息（JSON 格式）
+{{RESUME_CONTEXT}}
+
+## 生成要求
+
+### 选择题（multiple_choice）
+- 生成 6~8 道选择题
+- 每题 4 个选项，格式为 "A. 选项内容"、"B. 选项内容"、"C. 选项内容"、"D. 选项内容"
+- correctAnswer 仅填写字母，如 "A"
+- 题目要考察候选人简历中实际出现的技术点，而非通用知识
+- difficulty 分布：2题easy、3题medium、2题hard
+
+### 问答题（open_ended）
+- 生成 4~5 道开放式问答题
+- 侧重系统设计、架构思维、项目经验深挖
+- explanation 填写参考答案要点或评分关键词（5~10条，用于参考，不用于自动评分）
+- difficulty 以 medium 和 hard 为主
+
+### 通用规则
+- category 从简历的 interviewFocus 维度中取 title 值
+- 所有题目必须与候选人的真实技术栈和项目经历高度相关
+- 语言使用中文
+
+## 输出格式
+
+**必须且只输出一个合法的 JSON 对象**，格式严格如下：
+
+{
+  "questions": [
+    {
+      "type": "multiple_choice",
+      "content": "题目内容",
+      "options": ["A. 选项1", "B. 选项2", "C. 选项3", "D. 选项4"],
+      "correctAnswer": "A",
+      "explanation": "此题考察...正确答案是A，因为...",
+      "category": "技术深度",
+      "difficulty": "medium"
+    },
+    {
+      "type": "open_ended",
+      "content": "请描述你在某项目中的技术方案选型",
+      "options": null,
+      "correctAnswer": null,
+      "explanation": "参考要点：1. 技术选型背景 2. 备选方案对比 3. 最终决策理由 4. 落地效果",
+      "category": "项目亮点",
+      "difficulty": "hard"
+    }
   ]
 }
 `.trim();
@@ -283,6 +355,69 @@ export class GeminiService {
     return this.parseJsonFromText(rawText);
   }
 
+  /**
+   * 根据简历解析内容和面试侧重点，生成选择题与问答题
+   */
+  async generateQuestions(
+    parsedContent: ParsedResumeContent,
+    interviewFocus: InterviewFocus[],
+  ): Promise<GeminiQuestionResult> {
+    const path = `/v1beta/models/${this.modelName}:generateContent`;
+    const apiUrl = `${this.apiBase}${path}?key=${this.apiKey}`;
+
+    const contextSummary = JSON.stringify({ parsedContent, interviewFocus }, null, 0);
+    const prompt = QUESTION_GENERATION_PROMPT.replace('{{RESUME_CONTEXT}}', contextSummary);
+
+    const requestBody = {
+      contents: [{ role: 'user', parts: [{ text: prompt }] }],
+      generationConfig: { temperature: 0.4, topP: 0.9, maxOutputTokens: 8192 },
+    };
+
+    const bodyStr = JSON.stringify(requestBody);
+    this.logger.log(`[Gemini] 生成题目请求 | model=${this.modelName}`);
+
+    const t0 = Date.now();
+    let response: Response;
+    try {
+      response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: bodyStr,
+        signal: AbortSignal.timeout(this.fetchTimeoutMs),
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      this.logger.error(`[Gemini] 题目生成 fetch 异常 | afterMs=${Date.now() - t0} msg=${msg}`);
+      throw new InternalServerErrorException(`Gemini 网络请求失败: ${msg}`);
+    }
+
+    if (!response.ok) {
+      const errText = await response.text();
+      this.logger.error(`[Gemini] 题目生成 HTTP 错误 status=${response.status} body=${errText.slice(0, 1000)}`);
+      throw new InternalServerErrorException(`Gemini API 调用失败: ${response.status}`);
+    }
+
+    const rawJsonText = await response.text();
+    let data: GeminiApiResponse;
+    try {
+      data = JSON.parse(rawJsonText) as GeminiApiResponse;
+    } catch {
+      throw new InternalServerErrorException('Gemini 返回非 JSON');
+    }
+
+    if (data?.error) {
+      throw new InternalServerErrorException(
+        `Gemini 错误: ${(data.error as { message?: string }).message ?? 'unknown'}`,
+      );
+    }
+
+    const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+    if (!rawText) throw new InternalServerErrorException('Gemini 返回内容为空');
+
+    this.logger.log(`[Gemini] 题目生成成功 | afterMs=${Date.now() - t0}`);
+    return this.parseQuestionJson(rawText);
+  }
+
   // ─── 私有工具方法 ────────────────────────────────────────────────────────────
 
   /**
@@ -320,6 +455,29 @@ export class GeminiService {
     if (!result.parsedContent?.candidate) throw new Error('Missing parsedContent.candidate');
     if (!Array.isArray(result.interviewFocus)) throw new Error('Missing interviewFocus');
     if (!Array.isArray(result.dimensionScores)) throw new Error('Missing dimensionScores');
+  }
+
+  /** 从 LLM 文本中提取题目 JSON */
+  private parseQuestionJson(text: string): GeminiQuestionResult {
+    const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+    const candidate = fenced ? fenced[1].trim() : text.trim();
+    const start = candidate.indexOf('{');
+    const end = candidate.lastIndexOf('}');
+    if (start === -1 || end === -1) {
+      this.logger.error(`Cannot find JSON in question response: ${candidate.slice(0, 200)}`);
+      throw new InternalServerErrorException('AI 返回格式异常，无法提取题目 JSON');
+    }
+    const jsonStr = candidate.slice(start, end + 1);
+    try {
+      const parsed = JSON.parse(jsonStr) as GeminiQuestionResult;
+      if (!Array.isArray(parsed.questions) || parsed.questions.length === 0) {
+        throw new Error('questions array missing or empty');
+      }
+      return parsed;
+    } catch (e) {
+      this.logger.error(`Question JSON parse failed: ${e instanceof Error ? e.message : e}`);
+      throw new InternalServerErrorException('AI 返回题目 JSON 解析失败');
+    }
   }
 }
 

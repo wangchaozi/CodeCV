@@ -7,6 +7,8 @@ import ResumeAnalysisPage from '../pages/dashboard/ResumeAnalysisPage'
 import ProfilePage from '../pages/profile/ProfilePage'
 import KnowledgeSpacesPage from '../pages/knowledge/KnowledgeSpacesPage'
 import KnowledgeSpaceDetailPage from '../pages/knowledge/KnowledgeSpaceDetailPage'
+import InterviewPage from '../pages/interview/InterviewPage'
+import InterviewRecordsPage from '../pages/interview/InterviewRecordsPage'
 import { ProtectedRoute } from '../components/ProtectedRoute'
 
 export const router = createBrowserRouter([
@@ -24,8 +26,17 @@ export const router = createBrowserRouter([
       { index: true, element: <Navigate to="library" replace /> },
       { path: 'library', element: <DashboardPage /> },
       { path: 'resume/:resumeId', element: <ResumeAnalysisPage /> },
+      { path: 'interview-records', element: <InterviewRecordsPage /> },
       { path: 'profile', element: <ProfilePage /> },
     ],
+  },
+  {
+    path: '/interview/:resumeId',
+    element: (
+      <ProtectedRoute>
+        <InterviewPage />
+      </ProtectedRoute>
+    ),
   },
   {
     path: '/knowledge',
