@@ -73,17 +73,20 @@ function QuestionCard({
       <p className="iq-content">{question.content}</p>
 
       {isMultipleChoice && question.options ? (
-        <Radio.Group
-          className="iq-options"
-          value={answer}
-          onChange={(e) => onChange(e.target.value as string)}
-        >
-          {question.options.map((opt) => (
-            <Radio key={opt} value={opt[0]} className="iq-option">
-              {opt}
-            </Radio>
-          ))}
-        </Radio.Group>
+        <>
+          <Radio.Group
+            className="iq-options"
+            value={answer}
+            onChange={(e) => onChange(e.target.value as string)}
+          >
+            {question.options.map((opt) => (
+              <Radio key={opt} value={opt[0]} className="iq-option">
+                {opt}
+              </Radio>
+            ))}
+          </Radio.Group>
+          <p className="iq-enter-hint">按 <kbd>Enter</kbd> 键前往下一题</p>
+        </>
       ) : (
         <textarea
           className="iq-textarea"
@@ -327,7 +330,8 @@ export default function InterviewPage({ mode = 'new' }: InterviewPageProps) {
         questionId: q.id,
         userAnswer: answers.get(q.id) ?? '',
       }))
-      const res = await interviewApi.submitSession(session.id, answerItems)
+      // 把前端实际计时秒数一并提交，后端直接存储，避免时区计算偏差
+      const res = await interviewApi.submitSession(session.id, answerItems, elapsed)
       setSession(res.data)
       setDone(true)
     } catch {
@@ -345,6 +349,31 @@ export default function InterviewPage({ mode = 'new' }: InterviewPageProps) {
 
   const answeredCount = questions.filter((q) => (answers.get(q.id) ?? '').trim()).length
   const progress = questions.length > 0 ? Math.round((answeredCount / questions.length) * 100) : 0
+
+  // 回车键：选择题下一题 / 最后一题提交；问答题 textarea 不拦截
+  useEffect(() => {
+    if (generating || done) return
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Enter') return
+      const tag = (e.target as HTMLElement).tagName
+      // textarea 内的 Enter 不拦截（用于换行）
+      if (tag === 'TEXTAREA') return
+      // 弹窗打开时不拦截
+      if (document.querySelector('.ant-modal-root .ant-modal-open')) return
+
+      const q = questions[currentIndex]
+      if (!q || q.type !== 'multiple_choice') return
+
+      e.preventDefault()
+      if (currentIndex < questions.length - 1) {
+        setCurrentIndex((i) => i + 1)
+      } else {
+        void handleSubmit()
+      }
+    }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [generating, done, questions, currentIndex, handleSubmit])
 
   if (generating) {
     return (

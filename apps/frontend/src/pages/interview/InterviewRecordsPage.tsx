@@ -155,9 +155,30 @@ function SessionCard({
   const sc = scoreColor(session.score)
   const sl = scoreLabel(session.score)
   const startDate = new Date(session.startTime)
-  const duration = session.endTime
-    ? Math.round((new Date(session.endTime).getTime() - startDate.getTime()) / 60000)
-    : null
+
+  const durationText = (() => {
+    // 优先使用前端实际计时（无时区问题），旧数据降级到 endTime-startTime
+    const totalSecs = (() => {
+      if (session.durationSecs != null && session.durationSecs > 0) {
+        return session.durationSecs
+      }
+      if (!session.endTime) return null
+      const ms = new Date(session.endTime).getTime() - startDate.getTime()
+      if (ms <= 0) return null
+      // 差值超过 8 小时，大概率是时区偏差导致的脏数据，不展示
+      if (ms > 8 * 60 * 60 * 1000) return null
+      return Math.floor(ms / 1000)
+    })()
+
+    if (totalSecs == null) return null
+    const mins = Math.floor(totalSecs / 60)
+    const secs = totalSecs % 60
+    if (mins === 0) return `${secs} 秒`
+    if (mins < 60) return `${mins} 分 ${secs} 秒`
+    const hours = Math.floor(mins / 60)
+    const remainMins = mins % 60
+    return remainMins > 0 ? `${hours} 小时 ${remainMins} 分` : `${hours} 小时`
+  })()
 
   return (
     <motion.div
@@ -200,10 +221,10 @@ function SessionCard({
           <span>{startDate.toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' })}</span>
           <span>·</span>
           <span>{startDate.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}</span>
-          {duration !== null && (
+          {durationText && (
             <>
               <span>·</span>
-              <span><Clock size={11} style={{ verticalAlign: 'middle' }} /> 用时 {duration} 分钟</span>
+              <span><Clock size={11} style={{ verticalAlign: 'middle' }} /> 用时 {durationText}</span>
             </>
           )}
           <span>·</span>

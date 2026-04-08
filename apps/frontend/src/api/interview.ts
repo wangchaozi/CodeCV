@@ -39,6 +39,7 @@ export interface InterviewSession {
   score: number | null
   startTime: string
   endTime: string | null
+  durationSecs: number | null
   updateTime: string
   resume?: {
     id: string
@@ -84,9 +85,9 @@ export const interviewApi = {
   startSession: (resumeId: string) =>
     client.post<StartSessionResponse>(`/interview/session/start/${resumeId}`),
 
-  /** 提交答卷 */
-  submitSession: (sessionId: string, answers: AnswerItem[]) =>
-    client.post<InterviewSession>(`/interview/session/${sessionId}/submit`, { answers }),
+  /** 提交答卷（durationSecs 为前端实际答题秒数，用于避免时区计算偏差） */
+  submitSession: (sessionId: string, answers: AnswerItem[], durationSecs?: number) =>
+    client.post<InterviewSession>(`/interview/session/${sessionId}/submit`, { answers, durationSecs }),
 
   /** 获取面试记录列表 */
   getSessions: (params?: { limit?: number; offset?: number }) =>

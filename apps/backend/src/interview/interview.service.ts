@@ -123,6 +123,7 @@ export class InterviewService {
       correctCount: mcTotal > 0 ? correctCount : null,
       score,
       endTime: new Date(),
+      durationSecs: dto.durationSecs ?? null,
     });
 
     const updated = await this.sessionRepo.findOne({

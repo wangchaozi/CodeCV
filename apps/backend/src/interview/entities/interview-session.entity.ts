@@ -62,6 +62,10 @@ export class InterviewSessionEntity {
   @Column({ type: 'timestamp', nullable: true, comment: '面试结束时间' })
   endTime: Date | null;
 
+  @ApiProperty({ description: '实际答题时长（秒）', nullable: true })
+  @Column({ type: 'int', nullable: true, comment: '前端计时的实际答题秒数，避免时区差导致的偏差' })
+  durationSecs: number | null;
+
   @ApiProperty({ description: '更新时间' })
   @UpdateDateColumn({ type: 'timestamp', comment: '更新时间' })
   updateTime: Date;

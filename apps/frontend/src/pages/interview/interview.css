@@ -209,6 +209,26 @@
   font-weight: 500;
 }
 
+/* Enter 键提示 */
+.iq-enter-hint {
+  margin: 10px 0 0;
+  font-size: 12px;
+  color: #9ca3af;
+  text-align: right;
+}
+
+.iq-enter-hint kbd {
+  display: inline-block;
+  padding: 1px 5px;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  background: #f3f4f6;
+  font-size: 11px;
+  font-family: inherit;
+  color: #6b7280;
+  line-height: 1.6;
+}
+
 /* 问答题文本框 */
 .iq-textarea {
   width: 100%;
