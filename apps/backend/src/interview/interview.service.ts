@@ -17,6 +17,8 @@ import type { SubmitAnswersDto } from './dto/submit-answers.dto';
 @Injectable()
 export class InterviewService {
   private readonly logger = new Logger(InterviewService.name);
+  /** 防止同一简历并发触发多次 Gemini 生成的内存锁 */
+  private readonly generatingLocks = new Set<string>();
 
   constructor(
     @InjectRepository(InterviewQuestionEntity)
@@ -92,6 +94,9 @@ export class InterviewService {
 
     let correctCount = 0;
     let mcTotal = 0;
+
+    // 删除旧答案（恢复会话后重新提交时避免重复记录）
+    await this.answerRepo.delete({ sessionId });
 
     const answerEntities = dto.answers.map((item) => {
       const q = questionMap.get(item.questionId);
@@ -182,25 +187,62 @@ export class InterviewService {
   }
 
   private async generateAndSave(resume: ResumeEntity): Promise<InterviewQuestionEntity[]> {
-    this.logger.log(`Generating questions for resume: ${resume.id}`);
-    const result = await this.gemini.generateQuestions(resume.parsedContent!, resume.interviewFocus!);
+    const resumeId = resume.id;
 
-    const entities = result.questions.map((q, idx) =>
-      this.questionRepo.create({
-        resumeId: resume.id,
-        type: q.type,
-        content: q.content,
-        options: q.options,
-        correctAnswer: q.correctAnswer,
-        explanation: q.explanation,
-        category: q.category,
-        difficulty: q.difficulty,
-        sortOrder: idx,
-      }),
-    );
+    // 若已有其他并发请求正在生成，等待其完成后直接返回已存题目
+    if (this.generatingLocks.has(resumeId)) {
+      this.logger.warn(`Generation already in progress for resume: ${resumeId}, waiting...`);
+      await this.waitForLockRelease(resumeId);
+      return this.questionRepo.find({
+        where: { resumeId },
+        order: { sortOrder: 'ASC', createTime: 'ASC' },
+      });
+    }
 
-    const saved = await this.questionRepo.save(entities);
-    this.logger.log(`Generated ${saved.length} questions for resume: ${resume.id}`);
-    return saved;
+    this.generatingLocks.add(resumeId);
+    this.logger.log(`Generating questions for resume: ${resumeId}`);
+
+    try {
+      // 加锁后再次检查，防止在等待锁期间已有结果写入
+      const existing = await this.questionRepo.find({ where: { resumeId } });
+      if (existing.length > 0) {
+        return existing;
+      }
+
+      const result = await this.gemini.generateQuestions(resume.parsedContent!, resume.interviewFocus!);
+
+      const entities = result.questions.map((q, idx) =>
+        this.questionRepo.create({
+          resumeId,
+          type: q.type,
+          content: q.content,
+          options: q.options,
+          correctAnswer: q.correctAnswer,
+          explanation: q.explanation,
+          category: q.category,
+          difficulty: q.difficulty,
+          sortOrder: idx,
+        }),
+      );
+
+      const saved = await this.questionRepo.save(entities);
+      this.logger.log(`Generated ${saved.length} questions for resume: ${resumeId}`);
+      return saved;
+    } finally {
+      this.generatingLocks.delete(resumeId);
+    }
+  }
+
+  /** 轮询等待锁释放（最多 60s） */
+  private waitForLockRelease(resumeId: string, maxWaitMs = 60_000): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const start = Date.now();
+      const check = () => {
+        if (!this.generatingLocks.has(resumeId)) return resolve();
+        if (Date.now() - start > maxWaitMs) return reject(new Error('等待题目生成超时，请重试'));
+        setTimeout(check, 500);
+      };
+      check();
+    });
   }
 }

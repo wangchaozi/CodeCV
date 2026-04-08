@@ -201,8 +201,14 @@ function SessionCard({
           查看详情
         </Button>
         {session.resume && (
-          <Button size="small" type="primary" icon={<RotateCcw size={13} />} onClick={onRetry}>
-            再次面试
+          <Button
+            size="small"
+            type="primary"
+            icon={<RotateCcw size={13} />}
+            onClick={onRetry}
+            style={session.status === 'in_progress' ? { background: '#d97706', borderColor: '#d97706' } : undefined}
+          >
+            {session.status === 'in_progress' ? '继续作答' : '再次面试'}
           </Button>
         )}
       </div>
@@ -270,7 +276,13 @@ export default function InterviewRecordsPage() {
               session={s}
               onViewDetail={() => setDetailSessionId(s.id)}
               onRetry={() => {
-                if (s.resumeId) navigate(`/interview/${s.resumeId}`)
+                if (s.status === 'in_progress') {
+                  // 恢复进行中的会话，保留已答内容
+                  navigate(`/interview/resume/${s.id}`)
+                } else if (s.resumeId) {
+                  // 已完成的会话，针对同一简历新开一次面试
+                  navigate(`/interview/${s.resumeId}`)
+                }
               }}
             />
           ))}

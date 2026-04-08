@@ -205,8 +205,13 @@ function ResultPanel({
 
 // ─── 主页面 ───────────────────────────────────────────────────────────────────
 
-export default function InterviewPage() {
-  const { resumeId } = useParams<{ resumeId: string }>()
+interface InterviewPageProps {
+  /** resume: 恢复进行中的会话；new（默认）: 新建会话 */
+  mode?: 'new' | 'resume'
+}
+
+export default function InterviewPage({ mode = 'new' }: InterviewPageProps) {
+  const { resumeId, sessionId } = useParams<{ resumeId?: string; sessionId?: string }>()
   const navigate = useNavigate()
 
   const [generating, setGenerating] = useState(true)
@@ -218,21 +223,60 @@ export default function InterviewPage() {
   const [done, setDone] = useState(false)
   const [elapsed, setElapsed] = useState(0)
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const mountedRef = useRef(false)
+  const initStartedRef = useRef(false)
 
   useEffect(() => {
-    if (!resumeId) return
-    let cancelled = false
+    mountedRef.current = true
+    return () => { mountedRef.current = false }
+  }, [])
+
+  useEffect(() => {
+    if (initStartedRef.current) return
+    if (mode === 'new' && !resumeId) return
+    if (mode === 'resume' && !sessionId) return
+    initStartedRef.current = true
 
     const init = async () => {
       try {
-        const res = await interviewApi.startSession(resumeId)
-        if (cancelled) return
-        setSession(res.data.session)
-        setQuestions(res.data.questions)
-        setGenerating(false)
-        timerRef.current = setInterval(() => setElapsed((s) => s + 1), 1000)
+        if (mode === 'resume' && sessionId) {
+          // ── 恢复进行中的会话 ─────────────────────────────────────
+          const res = await interviewApi.getSessionDetail(sessionId)
+          if (!mountedRef.current) return
+
+          const { session: s, questions: qs, answers: existingAnswers } = res.data
+
+          // 恢复已有答案
+          const restored = new Map<string, string>()
+          for (const a of existingAnswers) {
+            restored.set(a.questionId, a.userAnswer)
+          }
+
+          // 从第一道未答题开始
+          const firstUnanswered = qs.findIndex((q) => !restored.get(q.id)?.trim())
+          const startIndex = firstUnanswered === -1 ? 0 : firstUnanswered
+
+          // 恢复已用时间（从会话开始时间到现在）
+          const elapsedSecs = Math.floor((Date.now() - new Date(s.startTime).getTime()) / 1000)
+
+          setSession(s)
+          setQuestions(qs)
+          setAnswers(restored)
+          setCurrentIndex(startIndex)
+          setElapsed(elapsedSecs)
+          setGenerating(false)
+          timerRef.current = setInterval(() => setElapsed((prev) => prev + 1), 1000)
+        } else if (resumeId) {
+          // ── 新建会话 ─────────────────────────────────────────────
+          const res = await interviewApi.startSession(resumeId)
+          if (!mountedRef.current) return
+          setSession(res.data.session)
+          setQuestions(res.data.questions)
+          setGenerating(false)
+          timerRef.current = setInterval(() => setElapsed((s) => s + 1), 1000)
+        }
       } catch (err: unknown) {
-        if (cancelled) return
+        if (!mountedRef.current) return
         const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? '启动面试失败'
         message.error(msg)
         navigate(-1)
@@ -241,10 +285,9 @@ export default function InterviewPage() {
 
     void init()
     return () => {
-      cancelled = true
       if (timerRef.current) clearInterval(timerRef.current)
     }
-  }, [resumeId, navigate])
+  }, [mode, resumeId, sessionId, navigate])
 
   const currentQuestion = questions[currentIndex]
   const currentAnswer = currentQuestion ? (answers.get(currentQuestion.id) ?? '') : ''
@@ -311,6 +354,9 @@ export default function InterviewPage() {
     )
   }
 
+  // 简历 ID 优先从 URL 取，恢复模式时从会话里取
+  const actualResumeId = resumeId ?? session?.resumeId
+
   if (done && session) {
     return (
       <div className="iq-root">
@@ -319,7 +365,7 @@ export default function InterviewPage() {
           questions={questions}
           answers={answers}
           onViewRecord={() => navigate('/dashboard/interview-records')}
-          onBack={() => navigate(`/dashboard/resume/${resumeId}`)}
+          onBack={() => navigate(actualResumeId ? `/dashboard/resume/${actualResumeId}` : '/dashboard/library')}
         />
       </div>
     )
@@ -335,7 +381,9 @@ export default function InterviewPage() {
           onClick={() => {
             Modal.confirm({
               title: '确认退出面试？',
-              content: '退出后当前答题进度将丢失。',
+              content: mode === 'resume'
+                ? '退出后本次未提交的修改将丢失，已保存的答案仍可在面试记录中继续作答。'
+                : '退出后当前答题进度将丢失。',
               okText: '确认退出',
               cancelText: '继续作答',
               onOk: () => navigate(-1),
