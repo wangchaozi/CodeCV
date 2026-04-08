@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Button, Spin, Empty, Tag, Modal, message } from 'antd'
-import { motion } from 'framer-motion'
+import { Button, Spin, Empty, Tag, Modal, message, Checkbox } from 'antd'
+import { motion, AnimatePresence } from 'framer-motion'
 import {
   History,
   FileText,
@@ -11,6 +11,7 @@ import {
   ChevronRight,
   RotateCcw,
   BookOpen,
+  Trash2,
 } from 'lucide-react'
 import { interviewApi } from '../../api/interview'
 import type { InterviewSession, InterviewQuestion, InterviewAnswer, SessionDetailResponse } from '../../api/interview'
@@ -136,12 +137,20 @@ function SessionDetailModal({
 
 function SessionCard({
   session,
+  selected,
+  selecting,
+  onSelect,
   onViewDetail,
   onRetry,
+  onDelete,
 }: {
   session: InterviewSession
+  selected: boolean
+  selecting: boolean
+  onSelect: (checked: boolean) => void
   onViewDetail: () => void
   onRetry: () => void
+  onDelete: () => void
 }) {
   const sc = scoreColor(session.score)
   const sl = scoreLabel(session.score)
@@ -152,11 +161,26 @@ function SessionCard({
 
   return (
     <motion.div
-      className="ir-card"
+      className={`ir-card${selected ? ' is-selected' : ''}`}
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.2 }}
     >
+      {/* 多选框 */}
+      <AnimatePresence>
+        {selecting && (
+          <motion.div
+            className="ir-card-checkbox"
+            initial={{ opacity: 0, width: 0 }}
+            animate={{ opacity: 1, width: 28 }}
+            exit={{ opacity: 0, width: 0 }}
+            transition={{ duration: 0.15 }}
+          >
+            <Checkbox checked={selected} onChange={(e) => onSelect(e.target.checked)} />
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <div className="ir-card-left">
         <div className="ir-card-score" style={{ color: sc }}>
           {session.score ?? '--'}
@@ -211,6 +235,14 @@ function SessionCard({
             {session.status === 'in_progress' ? '继续作答' : '再次面试'}
           </Button>
         )}
+        {/* 单条删除 */}
+        <Button
+          size="small"
+          danger
+          icon={<Trash2 size={13} />}
+          onClick={onDelete}
+          title="删除此记录"
+        />
       </div>
     </motion.div>
   )
@@ -224,6 +256,11 @@ export default function InterviewRecordsPage() {
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
   const [detailSessionId, setDetailSessionId] = useState<string | null>(null)
+
+  // 多选相关状态
+  const [selecting, setSelecting] = useState(false)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [batchDeleting, setBatchDeleting] = useState(false)
 
   const fetchSessions = useCallback(async () => {
     setLoading(true)
@@ -240,6 +277,75 @@ export default function InterviewRecordsPage() {
 
   useEffect(() => { void fetchSessions() }, [fetchSessions])
 
+  // 单条删除
+  const handleDelete = useCallback((sessionId: string) => {
+    Modal.confirm({
+      title: '确认删除此面试记录？',
+      content: '删除后不可恢复，相关答题数据也将一并删除。',
+      okText: '确认删除',
+      okButtonProps: { danger: true },
+      cancelText: '取消',
+      onOk: async () => {
+        try {
+          await interviewApi.deleteSession(sessionId)
+          message.success('已删除')
+          setSessions((prev) => prev.filter((s) => s.id !== sessionId))
+          setTotal((prev) => prev - 1)
+          setSelectedIds((prev) => { const next = new Set(prev); next.delete(sessionId); return next })
+        } catch {
+          message.error('删除失败，请重试')
+        }
+      },
+    })
+  }, [])
+
+  // 批量删除
+  const handleBatchDelete = useCallback(() => {
+    const count = selectedIds.size
+    if (count === 0) return
+    Modal.confirm({
+      title: `确认删除选中的 ${count} 条记录？`,
+      content: '删除后不可恢复，相关答题数据也将一并删除。',
+      okText: `删除 ${count} 条`,
+      okButtonProps: { danger: true },
+      cancelText: '取消',
+      onOk: async () => {
+        setBatchDeleting(true)
+        try {
+          await interviewApi.deleteSessions([...selectedIds])
+          message.success(`已删除 ${count} 条记录`)
+          setSessions((prev) => prev.filter((s) => !selectedIds.has(s.id)))
+          setTotal((prev) => prev - count)
+          setSelectedIds(new Set())
+          setSelecting(false)
+        } catch {
+          message.error('批量删除失败，请重试')
+        } finally {
+          setBatchDeleting(false)
+        }
+      },
+    })
+  }, [selectedIds])
+
+  const toggleSelect = useCallback((id: string, checked: boolean) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      checked ? next.add(id) : next.delete(id)
+      return next
+    })
+  }, [])
+
+  const isAllSelected = sessions.length > 0 && selectedIds.size === sessions.length
+
+  const handleSelectAll = (checked: boolean) => {
+    setSelectedIds(checked ? new Set(sessions.map((s) => s.id)) : new Set())
+  }
+
+  const exitSelecting = () => {
+    setSelecting(false)
+    setSelectedIds(new Set())
+  }
+
   return (
     <div className="ir-root">
       <div className="ir-header">
@@ -250,9 +356,44 @@ export default function InterviewRecordsPage() {
             <p className="ir-sub">共 {total} 条记录</p>
           </div>
         </div>
-        <Button onClick={() => navigate('/dashboard/library')} icon={<FileText size={14} />}>
-          去简历库
-        </Button>
+
+        <div className="ir-header-actions">
+          {selecting ? (
+            <>
+              <Checkbox
+                checked={isAllSelected}
+                indeterminate={selectedIds.size > 0 && !isAllSelected}
+                onChange={(e) => handleSelectAll(e.target.checked)}
+              >
+                全选
+              </Checkbox>
+              <Button
+                danger
+                icon={<Trash2 size={14} />}
+                disabled={selectedIds.size === 0}
+                loading={batchDeleting}
+                onClick={handleBatchDelete}
+              >
+                删除{selectedIds.size > 0 ? ` (${selectedIds.size})` : ''}
+              </Button>
+              <Button onClick={exitSelecting}>取消</Button>
+            </>
+          ) : (
+            <>
+              {sessions.length > 0 && (
+                <Button
+                  icon={<Trash2 size={14} />}
+                  onClick={() => setSelecting(true)}
+                >
+                  批量删除
+                </Button>
+              )}
+              <Button onClick={() => navigate('/dashboard/library')} icon={<FileText size={14} />}>
+                去简历库
+              </Button>
+            </>
+          )}
+        </div>
       </div>
 
       {loading ? (
@@ -274,13 +415,15 @@ export default function InterviewRecordsPage() {
             <SessionCard
               key={s.id}
               session={s}
+              selected={selectedIds.has(s.id)}
+              selecting={selecting}
+              onSelect={(checked) => toggleSelect(s.id, checked)}
               onViewDetail={() => setDetailSessionId(s.id)}
+              onDelete={() => handleDelete(s.id)}
               onRetry={() => {
                 if (s.status === 'in_progress') {
-                  // 恢复进行中的会话，保留已答内容
                   navigate(`/interview/resume/${s.id}`)
                 } else if (s.resumeId) {
-                  // 已完成的会话，针对同一简历新开一次面试
                   navigate(`/interview/${s.resumeId}`)
                 }
               }}

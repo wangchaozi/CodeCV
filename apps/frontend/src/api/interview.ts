@@ -95,4 +95,12 @@ export const interviewApi = {
   /** 获取面试会话详情（含题目 + 答案） */
   getSessionDetail: (sessionId: string) =>
     client.get<SessionDetailResponse>(`/interview/session/${sessionId}`),
+
+  /** 删除单条面试记录 */
+  deleteSession: (sessionId: string) =>
+    client.delete<void>(`/interview/session/${sessionId}`),
+
+  /** 批量删除面试记录 */
+  deleteSessions: (ids: string[]) =>
+    client.delete<void>('/interview/sessions/batch', { data: { ids } }),
 }

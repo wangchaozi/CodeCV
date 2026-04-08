@@ -2,18 +2,22 @@ import {
   Controller,
   Get,
   Post,
+  Delete,
   Param,
   Body,
   Query,
   UseGuards,
   ParseIntPipe,
   DefaultValuePipe,
+  HttpCode,
+  HttpStatus,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentUser, JwtUser } from '../auth/current-user.decorator';
 import { InterviewService } from './interview.service';
 import { SubmitAnswersDto } from './dto/submit-answers.dto';
+import { DeleteSessionsDto } from './dto/delete-sessions.dto';
 
 @ApiTags('Interview')
 @ApiBearerAuth()
@@ -102,5 +106,33 @@ export class InterviewController {
     @CurrentUser() user: JwtUser,
   ) {
     return this.interviewService.getSessionDetail(sessionId, user.sub);
+  }
+
+  /**
+   * 删除单条面试记录
+   * DELETE /api/interview/session/:sessionId
+   */
+  @Delete('session/:sessionId')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: '删除单条面试记录' })
+  async deleteSession(
+    @Param('sessionId') sessionId: string,
+    @CurrentUser() user: JwtUser,
+  ) {
+    return this.interviewService.deleteSession(sessionId, user.sub);
+  }
+
+  /**
+   * 批量删除面试记录
+   * DELETE /api/interview/sessions/batch
+   */
+  @Delete('sessions/batch')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: '批量删除面试记录' })
+  async deleteSessions(
+    @Body() dto: DeleteSessionsDto,
+    @CurrentUser() user: JwtUser,
+  ) {
+    return this.interviewService.deleteSessions(dto.ids, user.sub);
   }
 }

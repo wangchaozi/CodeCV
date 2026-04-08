@@ -6,7 +6,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { InterviewQuestionEntity } from './entities/interview-question.entity';
 import { InterviewSessionEntity } from './entities/interview-session.entity';
 import { InterviewAnswerEntity } from './entities/interview-answer.entity';
@@ -147,6 +147,28 @@ export class InterviewService {
       relations: ['resume'],
     });
     return { items, total };
+  }
+
+  /**
+   * 删除单条面试记录（级联删除答案）
+   */
+  async deleteSession(sessionId: string, userId: string): Promise<void> {
+    const session = await this.sessionRepo.findOne({ where: { id: sessionId } });
+    if (!session) throw new NotFoundException('面试会话不存在');
+    if (session.userId !== userId) throw new ForbiddenException('无权删除此会话');
+    await this.sessionRepo.delete(sessionId);
+  }
+
+  /**
+   * 批量删除面试记录
+   */
+  async deleteSessions(sessionIds: string[], userId: string): Promise<void> {
+    if (sessionIds.length === 0) return;
+    const sessions = await this.sessionRepo.find({
+      where: { id: In(sessionIds), userId },
+    });
+    if (sessions.length === 0) return;
+    await this.sessionRepo.delete(sessions.map((s) => s.id));
   }
 
   /**
