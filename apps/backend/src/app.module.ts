@@ -7,6 +7,7 @@ import { UserModule } from './user/user.module';
 import { AuthModule } from './auth/auth.module';
 import { ResumeModule } from './resume/resume.module';
 import { InterviewModule } from './interview/interview.module';
+import { KnowledgeModule } from './knowledge/knowledge.module';
 
 @Module({
   imports: [
@@ -38,6 +39,7 @@ import { InterviewModule } from './interview/interview.module';
     AuthModule,
     ResumeModule,
     InterviewModule,
+    KnowledgeModule,
   ],
   controllers: [AppController],
   providers: [AppService],

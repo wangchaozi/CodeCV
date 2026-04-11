@@ -9,7 +9,7 @@ import KnowledgeSpacesPage from '../pages/knowledge/KnowledgeSpacesPage'
 import KnowledgeSpaceDetailPage from '../pages/knowledge/KnowledgeSpaceDetailPage'
 import InterviewPage from '../pages/interview/InterviewPage'
 import InterviewRecordsPage from '../pages/interview/InterviewRecordsPage'
-// resume 模式复用同一组件，通过 mode prop 区分行为
+import AssistantPage from '../pages/assistant/AssistantPage'
 import { ProtectedRoute } from '../components/ProtectedRoute'
 
 export const router = createBrowserRouter([
@@ -60,6 +60,14 @@ export const router = createBrowserRouter([
     element: (
       <ProtectedRoute>
         <KnowledgeSpaceDetailPage />
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: '/assistant',
+    element: (
+      <ProtectedRoute>
+        <AssistantPage />
       </ProtectedRoute>
     ),
   },

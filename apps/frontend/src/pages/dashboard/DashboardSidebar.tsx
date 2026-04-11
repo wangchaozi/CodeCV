@@ -42,7 +42,7 @@ const navGroups: NavGroup[] = [
     items: [
       { key: 'records', icon: History, label: '面试记录', path: '/dashboard/interview-records' },
       { key: 'knowledge', icon: BookOpen, label: '知识库', path: '/knowledge' },
-      { key: 'assistant', icon: MessageCircle, label: '问答助手', path: null },
+      { key: 'assistant', icon: MessageCircle, label: '问答助手', path: '/assistant' },
     ],
   },
 ]
