@@ -5,7 +5,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { IsNull, Repository } from 'typeorm';
 import { KnowledgeChunkEntity } from './entities/knowledge-chunk.entity';
 import { KnowledgeArticleEntity } from './entities/knowledge-article.entity';
 import type { ChatHistoryItemDto } from './dto/rag-chat.dto';
@@ -145,7 +145,7 @@ export class RagService {
 
   async reindexSpace(spaceId: number): Promise<void> {
     const nullChunks = await this.chunkRepo.find({
-      where: { spaceId, embedding: null as unknown as number[] },
+      where: { spaceId, embedding: IsNull() },
     });
 
     this.logger.log(
