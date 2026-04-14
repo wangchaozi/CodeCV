@@ -10,25 +10,6 @@ import { KnowledgeChunkEntity } from './entities/knowledge-chunk.entity';
 import { KnowledgeArticleEntity } from './entities/knowledge-article.entity';
 import type { ChatHistoryItemDto } from './dto/rag-chat.dto';
 
-// 如果环境变量中有代理配置，则自动注入（解决 Node.js 原生 fetch 不读系统代理的问题）
-function buildFetchInit(init: RequestInit): RequestInit {
-  const proxyUrl =
-    process.env.HTTPS_PROXY ??
-    process.env.https_proxy ??
-    process.env.HTTP_PROXY ??
-    process.env.http_proxy;
-  if (!proxyUrl) return init;
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { ProxyAgent } = require('undici') as {
-      ProxyAgent: new (url: string) => object;
-    };
-    return { ...init, dispatcher: new ProxyAgent(proxyUrl) } as RequestInit;
-  } catch {
-    return init;
-  }
-}
-
 interface RetrievedChunk {
   content: string;
   articleId: number;
@@ -53,7 +34,6 @@ export class RagService {
     private articleRepo: Repository<KnowledgeArticleEntity>,
   ) {
     this.apiKey = (this.configService.get('GEMINI_API_KEY') as string) ?? '';
-    // 与 GeminiService 共用同一个中转站配置，默认保持一致
     this.apiBase =
       (this.configService.get('GEMINI_API_BASE') as string) ??
       'https://api.vectorengine.ai';
@@ -71,47 +51,36 @@ export class RagService {
   // ─── 嵌入 API ─────────────────────────────────────────────────────────────────
 
   async embedText(text: string): Promise<number[]> {
-    const url = `${this.apiBase}/v1beta/models/${this.embeddingModel}:embedContent`;
-    this.logger.debug(`[RAG] Embedding 请求 | base=${this.apiBase}`);
-    let res: Response;
-    try {
-      res = await fetch(
-        url,
-        buildFetchInit({
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-goog-api-key': this.apiKey,
-          },
-          body: JSON.stringify({ content: { parts: [{ text }] } }),
-          signal: AbortSignal.timeout(this.fetchTimeoutMs),
-        }),
-      );
-    } catch (err) {
-      const cause =
-        err instanceof Error
-          ? ((err as NodeJS.ErrnoException).cause ?? err.message)
-          : String(err);
-      this.logger.error(
-        `[RAG] Embedding fetch 失败 | cause=${JSON.stringify(cause)}`,
-      );
+    const url = `${this.apiBase}/v1/embeddings`;
+    this.logger.debug(
+      `[RAG] Embedding 请求 | base=${this.apiBase} model=${this.embeddingModel}`,
+    );
+
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${this.apiKey}`,
+      },
+      body: JSON.stringify({ model: this.embeddingModel, input: text }),
+      signal: AbortSignal.timeout(this.fetchTimeoutMs),
+    }).catch((err: unknown) => {
+      this.logger.error(`[RAG] Embedding 请求失败: ${String(err)}`);
       throw new InternalServerErrorException(
         `Embedding 网络请求失败: ${String(err)}`,
       );
-    }
+    });
 
     if (!res.ok) {
       const body = await res.text();
-      this.logger.error(
-        `Embedding API error ${res.status}: ${body.slice(0, 500)}`,
-      );
+      this.logger.error(`Embedding API error ${res.status}: ${body.slice(0, 500)}`);
       throw new InternalServerErrorException(
         `Embedding API 调用失败: ${res.status}`,
       );
     }
 
-    const data = (await res.json()) as { embedding?: { values: number[] } };
-    return data.embedding?.values ?? [];
+    const data = (await res.json()) as { data?: { embedding: number[] }[] };
+    return data.data?.[0]?.embedding ?? [];
   }
 
   // ─── 分块管理 ─────────────────────────────────────────────────────────────────
@@ -124,7 +93,6 @@ export class RagService {
   ): Promise<void> {
     if (!content?.trim()) return;
 
-    // 删除旧 chunks
     await this.chunkRepo.delete({ articleId });
 
     const textChunks = this.splitIntoChunks(content);
@@ -132,7 +100,6 @@ export class RagService {
       `[RAG] 生成 ${textChunks.length} 个分块 | articleId=${articleId}`,
     );
 
-    // 第一步：立即保存所有文本块（embedding 为 null），保证关键词检索立刻可用
     const saved = await Promise.all(
       textChunks.map((text, i) =>
         this.chunkRepo.save(
@@ -147,14 +114,12 @@ export class RagService {
       ),
     );
     this.logger.log(
-      `[RAG] 文本块已全部保存 | articleId=${articleId} count=${saved.length}`,
+      `[RAG] 文本块已保存 | articleId=${articleId} count=${saved.length}`,
     );
 
-    // 第二步：异步后台补充向量（不阻塞返回）
     void this.enrichEmbeddings(saved, articleId, articleTitle);
   }
 
-  /** 后台为已保存的文本块补充向量，任何失败不影响检索可用性 */
   private async enrichEmbeddings(
     chunks: KnowledgeChunkEntity[],
     articleId: number,
@@ -163,19 +128,44 @@ export class RagService {
     let enriched = 0;
     for (const chunk of chunks) {
       try {
-        const embedding = await this.embedText(chunk.content);
-        chunk.embedding = embedding;
+        chunk.embedding = await this.embedText(chunk.content);
         await this.chunkRepo.save(chunk);
         enriched++;
       } catch (err) {
         this.logger.warn(
-          `[RAG] chunk ${chunk.chunkIndex} 向量化失败，文本检索仍可用 | ${String(err)}`,
+          `[RAG] chunk ${chunk.chunkIndex} 向量化失败 | ${String(err)}`,
         );
-        break; // 中转站不支持 embedding 模型时提前退出
+        break;
       }
     }
     this.logger.log(
       `[RAG] 向量化完成 | articleId=${articleId} title="${articleTitle}" enriched=${enriched}/${chunks.length}`,
+    );
+  }
+
+  async reindexSpace(spaceId: number): Promise<void> {
+    const nullChunks = await this.chunkRepo.find({
+      where: { spaceId, embedding: null as unknown as number[] },
+    });
+
+    this.logger.log(
+      `[RAG] 开始补充向量 | spaceId=${spaceId} 待处理块数=${nullChunks.length}`,
+    );
+
+    let success = 0;
+    for (const chunk of nullChunks) {
+      try {
+        chunk.embedding = await this.embedText(chunk.content);
+        await this.chunkRepo.save(chunk);
+        success++;
+      } catch (err) {
+        this.logger.warn(`[RAG] reindex chunk ${chunk.id} 失败 | ${String(err)}`);
+        break;
+      }
+    }
+
+    this.logger.log(
+      `[RAG] 补充向量完成 | spaceId=${spaceId} 成功=${success}/${nullChunks.length}`,
     );
   }
 
@@ -194,11 +184,16 @@ export class RagService {
     question: string,
     topK = 5,
   ): Promise<RetrievedChunk[]> {
-    // 尝试向量检索（embedding API 不可用时自动降级）
-    const queryEmbedding = await this.embedText(question).catch(() => null);
+    let queryEmbedding: number[] | null = null;
+    try {
+      queryEmbedding = await this.embedText(question);
+      this.logger.log(`[RAG] 问题向量化成功 | dim=${queryEmbedding.length}`);
+    } catch (err) {
+      this.logger.warn(`[RAG] 问题向量化失败，降级原因: ${String(err)}`);
+    }
 
     if (queryEmbedding) {
-      // ── 向量检索路径 ────────────────────────────────────────────────────────
+      const totalChunks = await this.chunkRepo.count({ where: { spaceId } });
       const chunks = await this.chunkRepo
         .createQueryBuilder('c')
         .leftJoinAndSelect('c.article', 'a')
@@ -206,13 +201,17 @@ export class RagService {
         .andWhere('c.embedding IS NOT NULL')
         .getMany();
 
+      this.logger.log(
+        `[RAG] 向量块统计 | spaceId=${spaceId} 总块数=${totalChunks} 有向量块数=${chunks.length}`,
+      );
+
       if (chunks.length > 0) {
         const scored = chunks
           .map((c) => ({
             content: c.content,
             articleId: c.articleId,
             articleTitle: c.article?.title ?? '',
-            score: this.cosineSimilarity(queryEmbedding, c.embedding!),
+            score: this.cosineSimilarity(queryEmbedding!, c.embedding!),
           }))
           .sort((a, b) => b.score - a.score)
           .slice(0, topK);
@@ -222,30 +221,27 @@ export class RagService {
         );
         return scored;
       }
+
+      this.logger.warn(
+        `[RAG] 库中无向量块，降级至全文检索 | spaceId=${spaceId} totalChunks=${totalChunks}`,
+      );
     }
 
-    // ── 全文检索降级路径 ─────────────────────────────────────────────────────
     this.logger.log(`[RAG] 降级至全文检索 | spaceId=${spaceId}`);
     return this.keywordSearch(spaceId, question, topK);
   }
 
-  /**
-   * 基于关键词的全文检索（embedding 不可用时的降级方案）
-   * 策略：先查 knowledge_chunks，若为空则直接查 knowledge_articles
-   */
   private async keywordSearch(
     spaceId: number,
     question: string,
     topK: number,
   ): Promise<RetrievedChunk[]> {
-    // 分词：按空白、标点切分，过滤单字符
     const keywords = question
       .split(/[\s，。？！、,!?；;:：\n]+/)
       .map((w) => w.trim())
       .filter((w) => w.length > 1)
       .slice(0, 8);
 
-    // ── 先尝试从 knowledge_chunks 检索 ──────────────────────────────────────
     const chunkCount = await this.chunkRepo.count({ where: { spaceId } });
 
     if (chunkCount > 0) {
@@ -286,7 +282,6 @@ export class RagService {
         return scored;
       }
 
-      // 关键词未命中，取前 topK 块兜底
       const fallback = await this.chunkRepo
         .createQueryBuilder('c')
         .leftJoinAndSelect('c.article', 'a')
@@ -303,10 +298,8 @@ export class RagService {
       }));
     }
 
-    // ── Chunks 表为空，直接查 knowledge_articles 兜底 ─────────────────────
-    this.logger.warn(
-      `[RAG] chunks 表为空，直接查 knowledge_articles | spaceId=${spaceId}`,
-    );
+    // chunks 表为空，直接查文章表兜底
+    this.logger.warn(`[RAG] chunks 为空，查 knowledge_articles | spaceId=${spaceId}`);
 
     let artQb = this.articleRepo
       .createQueryBuilder('a')
@@ -327,7 +320,6 @@ export class RagService {
     const articles = await artQb.take(topK).getMany();
 
     if (articles.length === 0) {
-      // 兜底：取空间内全部文章
       const allArticles = await this.articleRepo.find({
         where: { spaceId },
         take: topK,
@@ -340,9 +332,7 @@ export class RagService {
       }));
     }
 
-    this.logger.log(
-      `[RAG] 文章直查完成 | spaceId=${spaceId} matched=${articles.length}`,
-    );
+    this.logger.log(`[RAG] 文章直查完成 | spaceId=${spaceId} matched=${articles.length}`);
 
     return articles.map((a) => ({
       content: a.content ?? a.title,
@@ -358,10 +348,6 @@ export class RagService {
 
   // ─── 流式问答 ─────────────────────────────────────────────────────────────────
 
-  /**
-   * 调用 Gemini streamGenerateContent，将 token 通过 onToken 回调逐字符推送。
-   * 完成后返回拼接的完整文本。
-   */
   async streamChat(
     chunks: RetrievedChunk[],
     question: string,
@@ -375,7 +361,6 @@ export class RagService {
             .join('\n\n---\n\n')
         : '（当前知识库中暂无相关内容，请基于通用知识作答并注明）';
 
-    // 使用 systemInstruction 字段注入系统提示 + 知识库上下文
     const systemInstruction = {
       parts: [
         {
@@ -394,7 +379,6 @@ ${context}
       ],
     };
 
-    // 直接将历史 + 当前问题作为 contents（systemInstruction 已单独传递）
     const contents = [
       ...history.map((msg) => ({
         role: msg.role === 'assistant' ? 'model' : 'user',
@@ -403,48 +387,38 @@ ${context}
       { role: 'user', parts: [{ text: question }] },
     ];
 
-    // 使用 x-goog-api-key Header 认证（与中转站文档一致）
     const url = `${this.apiBase}/v1beta/models/${this.chatModel}:streamGenerateContent?alt=sse`;
 
-    let response: Response;
-    try {
-      response = await fetch(
-        url,
-        buildFetchInit({
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-goog-api-key': this.apiKey,
-          },
-          body: JSON.stringify({
-            systemInstruction,
-            contents,
-            generationConfig: {
-              temperature: 0.3,
-              topP: 0.9,
-              maxOutputTokens: 2048,
-            },
-          }),
-          signal: AbortSignal.timeout(this.fetchTimeoutMs),
-        }),
-      );
-    } catch (err) {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-goog-api-key': this.apiKey,
+      },
+      body: JSON.stringify({
+        systemInstruction,
+        contents,
+        generationConfig: {
+          temperature: 0.3,
+          topP: 0.9,
+          maxOutputTokens: 2048,
+        },
+      }),
+      signal: AbortSignal.timeout(this.fetchTimeoutMs),
+    }).catch((err: unknown) => {
       throw new InternalServerErrorException(
         `Chat 网络请求失败: ${String(err)}`,
       );
-    }
+    });
 
     if (!response.ok) {
       const errText = await response.text();
-      this.logger.error(
-        `[RAG Chat] HTTP ${response.status}: ${errText.slice(0, 500)}`,
-      );
+      this.logger.error(`[RAG Chat] HTTP ${response.status}: ${errText.slice(0, 500)}`);
       throw new InternalServerErrorException(
         `Gemini Chat API 调用失败: ${response.status}`,
       );
     }
 
-    // 逐行读取 SSE 流
     const reader = response.body!.getReader();
     const decoder = new TextDecoder();
     let fullText = '';

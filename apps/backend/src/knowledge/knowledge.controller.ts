@@ -43,7 +43,10 @@ export class KnowledgeController {
   }
 
   @Get('spaces/:id')
-  getSpace(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: JwtUser) {
+  getSpace(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() user: JwtUser,
+  ) {
     return this.knowledgeService.getSpace(id, user.sub);
   }
 
@@ -62,7 +65,10 @@ export class KnowledgeController {
   }
 
   @Delete('spaces/:id')
-  deleteSpace(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: JwtUser) {
+  deleteSpace(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() user: JwtUser,
+  ) {
     return this.knowledgeService.deleteSpace(id, user.sub);
   }
 
@@ -96,7 +102,10 @@ export class KnowledgeController {
   }
 
   @Delete('articles/:id')
-  deleteArticle(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: JwtUser) {
+  deleteArticle(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() user: JwtUser,
+  ) {
     return this.knowledgeService.deleteArticle(id, user.sub);
   }
 
@@ -142,10 +151,15 @@ export class KnowledgeController {
     try {
       // 1. 权限检查 & 向量检索
       await this.knowledgeService.getSpace(spaceId, user.sub);
-      const chunks = await this.ragService.retrieveChunks(spaceId, dto.question);
+      const chunks = await this.ragService.retrieveChunks(
+        spaceId,
+        dto.question,
+      );
 
       // 2. 推送来源列表
-      const sources = [...new Set(chunks.map((c) => c.articleTitle).filter(Boolean))];
+      const sources = [
+        ...new Set(chunks.map((c) => c.articleTitle).filter(Boolean)),
+      ];
       sendEvent({ type: 'sources', sources });
 
       // 3. 流式生成
@@ -158,7 +172,10 @@ export class KnowledgeController {
 
       sendEvent({ type: 'done' });
     } catch (err) {
-      sendEvent({ type: 'error', message: err instanceof Error ? err.message : String(err) });
+      sendEvent({
+        type: 'error',
+        message: err instanceof Error ? err.message : String(err),
+      });
     } finally {
       res.end();
     }
